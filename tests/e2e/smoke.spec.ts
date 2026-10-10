@@ -87,6 +87,25 @@ test("logout clears the session and cached data", async ({ page }) => {
   await expect(page.getByText("Rp2.900.000")).toHaveCount(0);
 });
 
+test("switching to English persists across reloads and sign-out", async ({ page }) => {
+  await installFakeBackend(page);
+  await page.goto("/pengaturan");
+  await page.getByRole("radio", { name: "English" }).click();
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+  await expect(page.getByRole("region", { name: /Cash flow/ }).getByText("Rp2.000.000")).toBeVisible();
+
+  await page.goto("/pengaturan");
+  await page.evaluate(() => sessionStorage.setItem("e2e-signed-out", "1"));
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page.getByRole("button", { name: "Sign in with Google" })).toBeVisible();
+  await page.getByRole("radio", { name: "Bahasa Indonesia" }).click();
+  await expect(page.getByRole("button", { name: "Masuk dengan Google" })).toBeVisible();
+});
+
 test("daily expenses and category filters include sub-categories", async ({ page }) => {
   const backend = await installFakeBackend(page);
   const day = backend.txns[0].occurred_on;

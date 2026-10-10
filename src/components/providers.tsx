@@ -6,6 +6,7 @@ import { useState } from "react";
 import { ApiError, SessionExpiredError } from "@/lib/api/api-errors";
 
 import { AuthProvider } from "./auth-provider";
+import { I18nProvider } from "./i18n-provider";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -28,8 +29,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>{children}</AuthProvider>
-    </QueryClientProvider>
+    <I18nProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>{children}</AuthProvider>
+      </QueryClientProvider>
+    </I18nProvider>
   );
 }

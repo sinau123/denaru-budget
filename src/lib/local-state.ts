@@ -3,6 +3,10 @@
 
 const PREFIX = "denaru:";
 
+/** Display language; a device preference that survives signing out. */
+export const LOCALE_KEY = "locale";
+const DEVICE_KEYS = new Set([PREFIX + LOCALE_KEY]);
+
 export function readLocal(key: string): string | null {
   try {
     return window.localStorage.getItem(PREFIX + key);
@@ -25,7 +29,7 @@ export function clearLocalAppState() {
     const keys: string[] = [];
     for (let i = 0; i < window.localStorage.length; i++) {
       const k = window.localStorage.key(i);
-      if (k?.startsWith(PREFIX)) keys.push(k);
+      if (k?.startsWith(PREFIX) && !DEVICE_KEYS.has(k)) keys.push(k);
     }
     keys.forEach((k) => window.localStorage.removeItem(k));
   } catch {

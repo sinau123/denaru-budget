@@ -9,12 +9,14 @@ import { readLocal, writeLocal } from "@/lib/local-state";
 
 import { AccountForm } from "../account-form";
 import { useAuth, useUserId } from "../auth-provider";
+import { useI18n } from "../i18n-provider";
 import { Button } from "../ui/button";
 import { Notice } from "../ui/notice";
 
 export function OnboardingScreen() {
   const userId = useUserId();
   const auth = useAuth();
+  const { t } = useI18n();
   const router = useRouter();
   // loadProfile() bootstraps the profile and default categories idempotently.
   const profile = useProfile();
@@ -41,31 +43,30 @@ export function OnboardingScreen() {
         <p className="figure text-2xl font-semibold">
           denaru<span className="text-accent">.</span>
         </p>
-        <h1 className="figure mt-6 text-4xl font-semibold leading-tight">Mulai dengan satu dompet.</h1>
+        <h1 className="figure mt-6 text-4xl font-semibold leading-tight">{t.onboarding.title}</h1>
         <p className="mt-3 text-ink-soft">
-          Dompet adalah catatan manual, misalnya uang Tunai, rekening Bank, atau E-wallet. Isi saldo saat Anda mulai mencatat;
-          dompet lain bisa ditambah kapan saja.
+          {t.onboarding.intro}
         </p>
         <div className="mt-8 rounded-3xl border border-rule bg-paper-raised p-5 shadow-sm sm:p-6">
           {profile.isError ? (
-            <Notice tone="error" action={<Button size="sm" onClick={() => profile.refetch()}>Coba lagi</Button>}>
-              {errorMessage(profile.error)}
+            <Notice tone="error" action={<Button size="sm" onClick={() => profile.refetch()}>{t.common.retry}</Button>}>
+              {errorMessage(profile.error, t)}
             </Notice>
           ) : walletId && profile.data ? (
             <AccountForm
               clientId={walletId}
-              submitLabel="Simpan & lanjutkan"
+              submitLabel={t.onboarding.submit}
               onDone={() => {
                 writeLocal(storageKey, null);
                 router.replace("/");
               }}
             />
           ) : (
-            <p className="py-8 text-center text-ink-soft">Menyiapkan kategori awal…</p>
+            <p className="py-8 text-center text-ink-soft">{t.onboarding.preparing}</p>
           )}
         </div>
         <button type="button" onClick={() => auth.signOut()} className="mt-6 text-sm font-semibold text-ink-soft hover:text-ink">
-          Bukan akun Anda? Keluar
+          {t.onboarding.notYou}
         </button>
       </div>
     </main>

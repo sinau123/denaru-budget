@@ -4,14 +4,17 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 
 import type { DailyExpense } from "@/lib/daily-utils";
 import { formatDateLong, formatDateShort } from "@/lib/date-utils";
+import { INTL_TAG } from "@/lib/i18n/locales";
 import { formatRupiah, rupiahToChartNumber } from "@/lib/money-utils";
 
-const compact = new Intl.NumberFormat("id-ID", { notation: "compact", maximumFractionDigits: 1 });
+import { useI18n } from "./i18n-provider";
 
 type Point = { date: string; label: string; value: number; raw: string };
 
 /** Single-series daily expense bars, with an equivalent data table for screen readers. */
 export function DailyExpenseChart({ daily }: { daily: readonly DailyExpense[] }) {
+  const { t, locale } = useI18n();
+  const compact = new Intl.NumberFormat(INTL_TAG[locale], { notation: "compact", maximumFractionDigits: 1 });
   const data: Point[] = daily.map((d) => ({
     date: d.date,
     label: String(Number(d.date.slice(8))),
@@ -49,7 +52,7 @@ export function DailyExpenseChart({ daily }: { daily: readonly DailyExpense[] })
                 if (!active || !p) return null;
                 return (
                   <div className="rounded-xl border border-rule bg-paper-raised px-3 py-2 text-sm shadow-lg">
-                    <p className="text-ink-soft">{formatDateLong(p.date)}</p>
+                    <p className="text-ink-soft">{formatDateLong(p.date, locale)}</p>
                     <p className="figure text-base font-semibold text-ink">{formatRupiah(p.raw)}</p>
                   </div>
                 );
@@ -60,22 +63,22 @@ export function DailyExpenseChart({ daily }: { daily: readonly DailyExpense[] })
         </ResponsiveContainer>
       </div>
       <figcaption className="mt-2 flex items-center justify-between gap-3 text-xs text-ink-faint">
-        <span>{hasData ? "Pengeluaran per hari (tanggal)" : "Belum ada pengeluaran pada bulan ini."}</span>
+        <span>{hasData ? t.dailyChart.caption : t.dailyChart.empty}</span>
         <details className="group relative">
-          <summary className="cursor-pointer select-none font-semibold text-ink-soft hover:text-ink">Lihat tabel</summary>
+          <summary className="cursor-pointer select-none font-semibold text-ink-soft hover:text-ink">{t.dailyChart.showTable}</summary>
           <div className="absolute right-0 z-10 mt-2 max-h-72 w-60 overflow-y-auto rounded-xl border border-rule bg-paper-raised p-2 shadow-lg">
             <table className="w-full text-sm">
-              <caption className="sr-only">Pengeluaran harian</caption>
+              <caption className="sr-only">{t.dailyChart.tableCaption}</caption>
               <thead>
                 <tr className="text-left text-ink-faint">
-                  <th className="px-2 py-1 font-medium">Tanggal</th>
-                  <th className="px-2 py-1 text-right font-medium">Pengeluaran</th>
+                  <th className="px-2 py-1 font-medium">{t.common.date}</th>
+                  <th className="px-2 py-1 text-right font-medium">{t.transactionType.expense}</th>
                 </tr>
               </thead>
               <tbody>
                 {data.map((d) => (
                   <tr key={d.date} className="border-t border-rule">
-                    <td className="px-2 py-1 text-ink-soft">{formatDateShort(d.date)}</td>
+                    <td className="px-2 py-1 text-ink-soft">{formatDateShort(d.date, locale)}</td>
                     <td className="px-2 py-1 text-right text-ink">{formatRupiah(d.raw)}</td>
                   </tr>
                 ))}

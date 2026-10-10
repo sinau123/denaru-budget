@@ -20,5 +20,7 @@ describe("date-utils", () => {
     expect(isIsoDate("2026-02-30")).toBe(false);
     expect(isIsoDate("2026-02-28")).toBe(true);
     expect(relativeDayLabel("2026-10-09", "2026-10-10")).toBe("Kemarin");
+    expect(relativeDayLabel("2026-10-10", "2026-10-10", "en")).toBe("Today");
+    expect(relativeDayLabel("2026-10-09", "2026-10-10", "en")).toBe("Yesterday");
   });
 });

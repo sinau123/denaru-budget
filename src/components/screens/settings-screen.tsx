@@ -10,6 +10,8 @@ import { flattenCategories } from "@/lib/category-utils";
 
 import { useAuth } from "../auth-provider";
 import { ExportButton } from "../export-button";
+import { useI18n } from "../i18n-provider";
+import { LanguageSwitcher } from "../language-switcher";
 import { Button } from "../ui/button";
 import { cx } from "../ui/cx";
 import { inputClass } from "../ui/field";
@@ -18,26 +20,38 @@ import { Segmented } from "../ui/segmented";
 
 export function SettingsScreen() {
   const auth = useAuth();
+  const { t } = useI18n();
+  const s = t.settings;
   const [signingOut, setSigningOut] = useState(false);
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="figure text-3xl font-semibold sm:text-4xl">Pengaturan</h1>
+      <h1 className="figure text-3xl font-semibold sm:text-4xl">{t.nav.settings}</h1>
 
       <ProfileSection />
-      <CategoriesSection />
 
-      <Section title="Ekspor data" description="Unduh seluruh transaksi (termasuk dompet arsip) sebagai CSV. Impor belum tersedia.">
-        <div className="max-w-xs">
-          <ExportButton filters={{}} label="Unduh semua transaksi" />
+      <Section title={s.languageTitle} description={s.languageDescription}>
+        <div className="max-w-sm">
+          <LanguageSwitcher />
         </div>
       </Section>
 
-      <Section title="Pasang di layar utama" description="Di Chrome Android: menu ⋮ → Tambahkan ke layar utama. Di Safari iPhone: tombol Bagikan → Tambah ke Layar Utama." />
+      <CategoriesSection />
 
-      <Section title="Telegram" description="Mencatat transaksi lewat chat Telegram akan hadir pada fase berikutnya." />
+      <Section title={s.exportTitle} description={s.exportDescription}>
+        <div className="max-w-xs">
+          <ExportButton filters={{}} label={s.exportAll} />
+        </div>
+      </Section>
 
-      <Section title="Akun" description={auth.status === "signed-in" ? `Masuk sebagai ${auth.session.user.email ?? "pengguna Google"}.` : undefined}>
+      <Section title={s.installTitle} description={s.installDescription} />
+
+      <Section title={s.telegramTitle} description={s.telegramDescription} />
+
+      <Section
+        title={s.accountTitle}
+        description={auth.status === "signed-in" ? s.signedInAs(auth.session.user.email ?? s.googleUser) : undefined}
+      >
         <div>
           <Button
             variant="secondary"
@@ -47,7 +61,7 @@ export function SettingsScreen() {
               await auth.signOut();
             }}
           >
-            Keluar
+            {s.signOut}
           </Button>
         </div>
       </Section>
@@ -70,12 +84,13 @@ function Section({ title, description, children }: { title: string; description?
 function ProfileSection() {
   const profile = useProfile();
   const invalidate = useInvalidateUserData();
+  const { t } = useI18n();
   const [name, setName] = useState<string | null>(null);
   const [state, setState] = useState<{ pending?: boolean; message?: string; error?: string }>({});
   const value = name ?? profile.data?.display_name ?? "";
 
   return (
-    <Section title="Profil" description="Mata uang IDR dan zona waktu Asia/Jakarta.">
+    <Section title={t.settings.profileTitle} description={t.settings.profileDescription}>
       <form
         className="flex flex-col gap-2 sm:flex-row"
         onSubmit={async (e) => {
@@ -84,19 +99,19 @@ function ProfileSection() {
           try {
             await updateProfile(value);
             await invalidate();
-            setState({ message: "Nama disimpan." });
+            setState({ message: t.settings.nameSaved });
             setName(null);
           } catch (error) {
-            setState({ error: errorMessage(error) });
+            setState({ error: errorMessage(error, t) });
           }
         }}
       >
         <label className="flex-1">
-          <span className="sr-only">Nama tampilan</span>
-          <input value={value} maxLength={100} onChange={(e) => setName(e.target.value)} className={inputClass} placeholder="Nama tampilan" />
+          <span className="sr-only">{t.settings.displayName}</span>
+          <input value={value} maxLength={100} onChange={(e) => setName(e.target.value)} className={inputClass} placeholder={t.settings.displayName} />
         </label>
         <Button type="submit" variant="secondary" pending={state.pending} disabled={name === null}>
-          Simpan
+          {t.common.save}
         </Button>
       </form>
       {state.message ? <p role="status" className="text-sm text-accent">{state.message}</p> : null}
@@ -108,6 +123,8 @@ function ProfileSection() {
 function CategoriesSection() {
   const categories = useCategories();
   const invalidate = useInvalidateUserData();
+  const { t } = useI18n();
+  const s = t.settings;
   const [type, setType] = useState<CategoryType>("expense");
   const [newName, setNewName] = useState("");
   const [newParent, setNewParent] = useState("");
@@ -128,7 +145,7 @@ function CategoriesSection() {
       await invalidate();
       return true;
     } catch (e) {
-      setError(errorMessage(e));
+      setError(errorMessage(e, t));
       return false;
     } finally {
       setBusy(null);
@@ -137,15 +154,15 @@ function CategoriesSection() {
 
   return (
     <Section
-      title="Kategori"
-      description="Sub-kategori (mis. Jajan di bawah Makanan) ikut terhitung saat memfilter kategori induknya. Kategori arsip tetap tampil di riwayat, tetapi tidak bisa dipilih untuk transaksi baru."
+      title={s.categoriesTitle}
+      description={s.categoriesDescription}
     >
       <Segmented
-        label="Jenis kategori"
+        label={s.categoryType}
         value={type}
         options={[
-          { value: "expense", label: "Pengeluaran" },
-          { value: "income", label: "Pemasukan" },
+          { value: "expense", label: t.transactionType.expense },
+          { value: "income", label: t.transactionType.income },
         ]}
         onChange={(t) => {
           setType(t);
@@ -157,7 +174,7 @@ function CategoriesSection() {
         onSubmit={async (e) => {
           e.preventDefault();
           const name = newName.trim();
-          if (!name) return setError("Nama kategori wajib diisi.");
+          if (!name) return setError(s.categoryNameRequired);
           const ok = await run("new", () => createCategory(newId, name, type, newParent || null));
           if (ok) {
             setNewName("");
@@ -166,19 +183,19 @@ function CategoriesSection() {
         }}
       >
         <label className="col-span-2 sm:col-span-1">
-          <span className="sr-only">Nama kategori baru</span>
-          <input value={newName} maxLength={50} onChange={(e) => setNewName(e.target.value)} placeholder="Kategori baru" className={inputClass} />
+          <span className="sr-only">{s.newCategoryName}</span>
+          <input value={newName} maxLength={50} onChange={(e) => setNewName(e.target.value)} placeholder={s.newCategoryPlaceholder} className={inputClass} />
         </label>
         <label>
-          <span className="sr-only">Induk kategori baru</span>
+          <span className="sr-only">{s.newCategoryParent}</span>
           <ParentSelect value={newParent} options={parentOptions} onChange={setNewParent} />
         </label>
         <Button type="submit" pending={busy === "new"}>
-          Tambah
+          {t.common.add}
         </Button>
       </form>
       {error ? <Notice tone="error">{error}</Notice> : null}
-      {categories.isError ? <Notice tone="error">{errorMessage(categories.error)}</Notice> : null}
+      {categories.isError ? <Notice tone="error">{errorMessage(categories.error, t)}</Notice> : null}
       <ul className="divide-y divide-rule rounded-2xl border border-rule">
         {list.map(({ category: c, depth }) => (
           <CategoryRow
@@ -210,13 +227,14 @@ function ParentSelect({
   onChange: (id: string) => void;
   disabled?: boolean;
 }) {
+  const { t } = useI18n();
   return (
     <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} className={inputClass}>
-      <option value="">Tanpa induk</option>
+      <option value="">{t.settings.noParent}</option>
       {options.map((p) => (
         <option key={p.id} value={p.id}>
-          Di bawah {p.name}
-          {p.archived_at ? " (arsip)" : ""}
+          {t.settings.under(p.name)}
+          {p.archived_at ? t.common.archivedSuffix : ""}
         </option>
       ))}
     </select>
@@ -240,6 +258,7 @@ function CategoryRow({
   onSave: (name: string, parentId: string | null) => Promise<boolean>;
   onArchive: (archived: boolean) => Promise<boolean>;
 }) {
+  const { t } = useI18n();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(category.name);
   const [parentId, setParentId] = useState(category.parent_id ?? "");
@@ -249,11 +268,11 @@ function CategoryRow({
     return (
       <li className="grid grid-cols-2 gap-2 p-2 sm:grid-cols-[1fr_12rem_auto_auto]">
         <label className="col-span-2 sm:col-span-1">
-          <span className="sr-only">Nama kategori</span>
+          <span className="sr-only">{t.settings.categoryName}</span>
           <input autoFocus value={name} maxLength={50} onChange={(e) => setName(e.target.value)} className={inputClass} />
         </label>
         <label className="col-span-2 sm:col-span-1">
-          <span className="sr-only">Induk kategori</span>
+          <span className="sr-only">{t.settings.categoryParent}</span>
           <ParentSelect value={parentId} options={parentOptions} onChange={setParentId} disabled={hasChildren} />
         </label>
         <Button
@@ -263,7 +282,7 @@ function CategoryRow({
             if (await onSave(name.trim(), parentId || null)) setEditing(false);
           }}
         >
-          Simpan
+          {t.common.save}
         </Button>
         <Button
           size="md"
@@ -274,10 +293,10 @@ function CategoryRow({
             setEditing(false);
           }}
         >
-          Batal
+          {t.common.cancel}
         </Button>
         {hasChildren ? (
-          <p className="col-span-2 text-xs text-ink-faint sm:col-span-4">Kategori ini punya sub-kategori, jadi tetap menjadi kategori utama.</p>
+          <p className="col-span-2 text-xs text-ink-faint sm:col-span-4">{t.settings.hasChildrenHint}</p>
         ) : null}
       </li>
     );
@@ -290,16 +309,16 @@ function CategoryRow({
         </span>
       ) : null}
       <span className={archived ? "min-w-0 flex-1 truncate text-ink-faint line-through" : "min-w-0 flex-1 truncate font-medium"}>
-        {depth === 1 ? <span className="sr-only">Sub-kategori </span> : null}
+        {depth === 1 ? <span className="sr-only">{t.settings.subcategory} </span> : null}
         {category.name}
       </span>
       {!archived ? (
         <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
-          Ubah
+          {t.common.edit}
         </Button>
       ) : null}
       <Button size="sm" variant="ghost" pending={busy} onClick={() => onArchive(!archived)}>
-        {archived ? "Aktifkan" : "Arsipkan"}
+        {archived ? t.settings.unarchive : t.common.archive}
       </Button>
     </li>
   );

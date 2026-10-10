@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
+import { useI18n } from "../i18n-provider";
 import { cx } from "./cx";
 
 type DialogProps = {
@@ -19,6 +20,7 @@ type DialogProps = {
  */
 export function Dialog({ open, onClose, title, description, children, className }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  const { t } = useI18n();
 
   useEffect(() => {
     const el = ref.current;
@@ -57,7 +59,7 @@ export function Dialog({ open, onClose, title, description, children, className 
             <button
               type="button"
               onClick={onClose}
-              aria-label="Tutup"
+              aria-label={t.common.close}
               className="-mr-2 -mt-1 grid size-10 place-items-center rounded-full text-ink-soft hover:bg-paper-sunken"
             >
               <svg viewBox="0 0 24 24" className="size-5" aria-hidden fill="none" stroke="currentColor" strokeWidth="2">

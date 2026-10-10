@@ -4,6 +4,7 @@ import type { DailyTotal, TransactionRow } from "@/lib/api/api-types";
 import { relativeDayLabel, todayJakarta } from "@/lib/date-utils";
 import { formatRupiah, sumRupiah } from "@/lib/money-utils";
 
+import { useI18n } from "./i18n-provider";
 import { cx } from "./ui/cx";
 
 /**
@@ -20,6 +21,7 @@ export function TransactionList({
   dayTotals?: ReadonlyMap<string, DailyTotal>;
   onSelect: (row: TransactionRow) => void;
 }) {
+  const { t, locale } = useI18n();
   const today = todayJakarta();
   const groups: { date: string; rows: TransactionRow[] }[] = [];
   for (const row of rows) {
@@ -37,18 +39,18 @@ export function TransactionList({
         const expense = server?.expense_rupiah ?? sumOf("expense");
         const income = server?.income_rupiah ?? sumOf("income");
         return (
-          <section key={g.date} aria-label={relativeDayLabel(g.date, today)}>
+          <section key={g.date} aria-label={relativeDayLabel(g.date, today, locale)}>
             <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-3 px-1 text-xs font-semibold uppercase tracking-wide text-ink-faint">
-              <h3>{relativeDayLabel(g.date, today)}</h3>
+              <h3>{relativeDayLabel(g.date, today, locale)}</h3>
               <p className="figure flex gap-3 normal-case tracking-normal">
                 {expense !== "0" ? (
                   <span className="text-outflow">
-                    <span className="sr-only">Pengeluaran </span>−{formatRupiah(expense)}
+                    <span className="sr-only">{t.transactionType.expense} </span>−{formatRupiah(expense)}
                   </span>
                 ) : null}
                 {income !== "0" ? (
                   <span className="text-inflow">
-                    <span className="sr-only">Pemasukan </span>+{formatRupiah(income)}
+                    <span className="sr-only">{t.transactionType.income} </span>+{formatRupiah(income)}
                   </span>
                 ) : null}
               </p>
@@ -67,7 +69,7 @@ export function TransactionList({
                         {r.type === "transfer" ? `${r.account_name} → ${r.to_account_name}` : r.category_name}
                       </p>
                       <p className="truncate text-sm text-ink-faint">
-                        {r.type === "transfer" ? "Transfer" : r.account_name}
+                        {r.type === "transfer" ? t.transactionType.transfer : r.account_name}
                         {r.note ? ` · ${r.note}` : ""}
                       </p>
                     </div>
@@ -93,7 +95,8 @@ export function TransactionList({
 }
 
 function TypeMark({ type }: { type: TransactionRow["type"] }) {
-  const label = type === "income" ? "Pemasukan" : type === "expense" ? "Pengeluaran" : "Transfer";
+  const { t } = useI18n();
+  const label = t.transactionType[type];
   return (
     <span
       role="img"

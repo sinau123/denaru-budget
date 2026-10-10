@@ -10,6 +10,7 @@ import { flattenCategories } from "@/lib/category-utils";
 import { addDays, currentMonthJakarta, formatMonth, isMonth, monthRange } from "@/lib/date-utils";
 
 import { ExportButton } from "../export-button";
+import { useI18n } from "../i18n-provider";
 import { useTransactionDialog } from "../transaction-dialog";
 import { TransactionList } from "../transaction-list";
 import { Button } from "../ui/button";
@@ -17,11 +18,7 @@ import { inputClass } from "../ui/field";
 import { EmptyState, Notice, Skeleton } from "../ui/notice";
 import { useDebouncedValue } from "../use-debounced-value";
 
-const TYPES: { value: TransactionType; label: string }[] = [
-  { value: "expense", label: "Pengeluaran" },
-  { value: "income", label: "Pemasukan" },
-  { value: "transfer", label: "Transfer" },
-];
+const TYPES: readonly TransactionType[] = ["expense", "income", "transfer"];
 
 export function TransactionsScreen() {
   const params = useSearchParams();
@@ -30,10 +27,12 @@ export function TransactionsScreen() {
   const accounts = useAccounts();
   const categories = useCategories();
   const { openTransaction } = useTransactionDialog();
+  const { t, locale } = useI18n();
+  const s = t.transactions;
 
   // URL is the source of truth for filters (shareable, back/forward works).
   const period = params.get("bulan") ?? currentMonthJakarta();
-  const type = (TYPES.find((t) => t.value === params.get("jenis"))?.value ?? null) as TransactionType | null;
+  const type = TYPES.find((value) => value === params.get("jenis")) ?? null;
   const accountId = params.get("dompet");
   const categoryId = type === "transfer" ? null : params.get("kategori");
   const urlSearch = params.get("q") ?? "";
@@ -88,23 +87,23 @@ export function TransactionsScreen() {
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="figure text-3xl font-semibold sm:text-4xl">Transaksi</h1>
-        <ExportButton filters={filters} label="Ekspor hasil filter" />
+        <h1 className="figure text-3xl font-semibold sm:text-4xl">{t.nav.transactions}</h1>
+        <ExportButton filters={filters} label={s.exportFiltered} />
       </header>
 
-      <section aria-label="Filter" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      <section aria-label={s.filters} className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         <label className="col-span-2 sm:col-span-3 lg:col-span-2">
-          <span className="sr-only">Cari catatan</span>
+          <span className="sr-only">{s.search}</span>
           <input
             type="search"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Cari catatan…"
+            placeholder={s.searchPlaceholder}
             className={inputClass}
           />
         </label>
         <label>
-          <span className="sr-only">Periode</span>
+          <span className="sr-only">{s.period}</span>
           <select
             value={isMonth(period) ? period : "semua"}
             onChange={(e) => setParam({ bulan: e.target.value })}
@@ -112,52 +111,52 @@ export function TransactionsScreen() {
           >
             {recentMonths(period).map((m) => (
               <option key={m} value={m}>
-                {formatMonth(m)}
+                {formatMonth(m, locale)}
               </option>
             ))}
-            <option value="semua">Semua waktu</option>
+            <option value="semua">{s.allTime}</option>
           </select>
         </label>
         <label>
-          <span className="sr-only">Jenis</span>
+          <span className="sr-only">{t.common.type}</span>
           <select
             value={type ?? ""}
             onChange={(e) => setParam({ jenis: e.target.value || null, kategori: null })}
             className={inputClass}
           >
-            <option value="">Semua jenis</option>
-            {TYPES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
+            <option value="">{s.allTypes}</option>
+            {TYPES.map((value) => (
+              <option key={value} value={value}>
+                {t.transactionType[value]}
               </option>
             ))}
           </select>
         </label>
         <label>
-          <span className="sr-only">Dompet</span>
+          <span className="sr-only">{t.common.wallet}</span>
           <select value={accountId ?? ""} onChange={(e) => setParam({ dompet: e.target.value || null })} className={inputClass}>
-            <option value="">Semua dompet</option>
+            <option value="">{s.allWallets}</option>
             {(accounts.data ?? []).map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name}
-                {a.archived_at ? " (arsip)" : ""}
+                {a.archived_at ? t.common.archivedSuffix : ""}
               </option>
             ))}
           </select>
         </label>
         <label>
-          <span className="sr-only">Kategori</span>
+          <span className="sr-only">{t.common.category}</span>
           <select
             value={categoryId ?? ""}
             disabled={type === "transfer"}
             onChange={(e) => setParam({ kategori: e.target.value || null })}
             className={inputClass}
           >
-            <option value="">Semua kategori</option>
+            <option value="">{t.common.allCategories}</option>
             {categoryOptions.map(({ category: c, label }) => (
               <option key={c.id} value={c.id}>
-                {label} · {c.type === "income" ? "masuk" : "keluar"}
-                {c.archived_at ? " (arsip)" : ""}
+                {label} · {c.type === "income" ? s.categoryIn : s.categoryOut}
+                {c.archived_at ? t.common.archivedSuffix : ""}
               </option>
             ))}
           </select>
@@ -173,7 +172,7 @@ export function TransactionsScreen() {
               router.replace(pathname, { scroll: false });
             }}
           >
-            Reset filter
+            {s.resetFilters}
           </Button>
         </div>
       ) : null}
@@ -185,30 +184,30 @@ export function TransactionsScreen() {
           <Skeleton className="h-16" />
         </div>
       ) : query.isError && rows.length === 0 ? (
-        <Notice tone="error" title="Gagal memuat transaksi" action={<Button size="sm" onClick={() => query.refetch()}>Coba lagi</Button>}>
-          {errorMessage(query.error)}
+        <Notice tone="error" title={s.loadFailed} action={<Button size="sm" onClick={() => query.refetch()}>{t.common.retry}</Button>}>
+          {errorMessage(query.error, t)}
         </Notice>
       ) : rows.length === 0 ? (
         <EmptyState
-          title={hasFilters ? "Tidak ada transaksi yang cocok" : "Belum ada transaksi"}
+          title={hasFilters ? s.noMatchTitle : s.emptyTitle}
           action={
             hasFilters ? null : (
-              <Button onClick={() => openTransaction()}>Tambah transaksi</Button>
+              <Button onClick={() => openTransaction()}>{t.common.addTransaction}</Button>
             )
           }
         >
-          {hasFilters ? "Ubah atau reset filter untuk melihat transaksi lain." : "Transaksi yang dicatat akan muncul di sini."}
+          {hasFilters ? s.noMatchBody : s.emptyBody}
         </EmptyState>
       ) : (
         <>
           <TransactionList rows={rows} dayTotals={dayTotals} onSelect={(transaction) => openTransaction({ transaction })} />
-          {query.isFetchNextPageError ? <Notice tone="error">{errorMessage(query.error)}</Notice> : null}
+          {query.isFetchNextPageError ? <Notice tone="error">{errorMessage(query.error, t)}</Notice> : null}
           {query.hasNextPage ? (
             <Button variant="secondary" onClick={() => query.fetchNextPage()} pending={query.isFetchingNextPage} className="self-center">
-              Muat lebih banyak
+              {s.loadMore}
             </Button>
           ) : (
-            <p className="text-center text-xs text-ink-faint">{rows.length} transaksi ditampilkan.</p>
+            <p className="text-center text-xs text-ink-faint">{s.shown(rows.length)}</p>
           )}
         </>
       )}

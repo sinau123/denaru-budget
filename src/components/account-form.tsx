@@ -9,17 +9,14 @@ import { type AccountInput, createAccount, updateAccount } from "@/lib/api/budge
 import { formatDateLong, isIsoDate, todayJakarta } from "@/lib/date-utils";
 import { formatRupiah, validateRupiah } from "@/lib/money-utils";
 
+import { rich, useI18n } from "./i18n-provider";
 import { Button } from "./ui/button";
 import { Field, inputClass } from "./ui/field";
 import { MoneyInput } from "./ui/money-input";
 import { Notice } from "./ui/notice";
 import { Segmented } from "./ui/segmented";
 
-const TYPE_OPTIONS = [
-  { value: "cash", label: "Tunai" },
-  { value: "bank", label: "Bank" },
-  { value: "ewallet", label: "E-wallet" },
-] as const;
+const ACCOUNT_TYPES: readonly AccountType[] = ["cash", "bank", "ewallet"];
 
 type Errors = Partial<Record<"name" | "opening" | "opened_on", string>>;
 
@@ -39,6 +36,8 @@ export function AccountForm({
   onDone: (account: Pick<Account, "id" | "name">) => void;
 }) {
   const invalidate = useInvalidateUserData();
+  const { t, locale } = useI18n();
+  const f = t.accountForm;
   const today = todayJakarta();
   const [id] = useState(() => account?.id ?? clientId ?? crypto.randomUUID());
   const [name, setName] = useState(account?.name ?? "");
@@ -55,13 +54,13 @@ export function AccountForm({
   function validate(): AccountInput | null {
     const next: Errors = {};
     const trimmed = name.trim();
-    if (!trimmed || trimmed.length > 50) next.name = "Nama wajib diisi, maksimal 50 karakter.";
+    if (!trimmed || trimmed.length > 50) next.name = f.errors.name;
     const amount = validateRupiah(opening || "0", { allowNegative: true, allowZero: true });
-    if (!amount.ok) next.opening = amount.reason === "too_large" ? "Saldo terlalu besar." : "Saldo awal harus rupiah bulat.";
-    if (!isIsoDate(openedOn)) next.opened_on = "Tanggal tidak valid.";
-    else if (openedOn > today) next.opened_on = "Tanggal mulai tidak boleh melewati hari ini.";
+    if (!amount.ok) next.opening = amount.reason === "too_large" ? f.errors.openingTooLarge : f.errors.openingInvalid;
+    if (!isIsoDate(openedOn)) next.opened_on = f.errors.dateInvalid;
+    else if (openedOn > today) next.opened_on = f.errors.openedInFuture;
     else if (account?.earliest_occurred_on && openedOn > account.earliest_occurred_on) {
-      next.opened_on = `Tidak boleh melampaui transaksi paling awal (${formatDateLong(account.earliest_occurred_on)}).`;
+      next.opened_on = f.errors.openedAfterEarliest(formatDateLong(account.earliest_occurred_on, locale));
     }
     setErrors(next);
     if (Object.keys(next).length || !amount.ok) return null;
@@ -85,11 +84,11 @@ export function AccountForm({
     } catch (error) {
       if (error instanceof ApiError && error.field) {
         const field = error.field === "opened_on" ? "opened_on" : error.field === "amount" ? "opening" : "name";
-        setErrors({ [field]: error.message });
+        setErrors({ [field]: errorMessage(error, t) });
       } else if (error instanceof NetworkError) {
-        setFormError(`${error.message} Data belum dapat dipastikan tersimpan; tekan simpan lagi untuk mencoba ulang dengan aman.`);
+        setFormError(`${errorMessage(error, t)} ${f.errors.uncertain}`);
       } else {
-        setFormError(errorMessage(error));
+        setFormError(errorMessage(error, t));
       }
     } finally {
       setPending(false);
@@ -101,17 +100,19 @@ export function AccountForm({
     return (
       <div className="flex flex-col gap-4">
         <p className="text-ink-soft">
-          Ubah saldo awal <strong className="text-ink">{account.name}</strong> dari{" "}
-          <strong className="figure text-ink">{formatRupiah(account.opening_balance_rupiah)}</strong> menjadi{" "}
-          <strong className="figure text-ink">{formatRupiah(opening || "0")}</strong> per {formatDateLong(openedOn)}? Saldo saat
-          ini akan dihitung ulang.
+          {rich(f.confirmOpening, {
+            name: <strong className="text-ink">{account.name}</strong>,
+            from: <strong className="figure text-ink">{formatRupiah(account.opening_balance_rupiah)}</strong>,
+            to: <strong className="figure text-ink">{formatRupiah(opening || "0")}</strong>,
+            date: formatDateLong(openedOn, locale),
+          })}
         </p>
         <div className="grid grid-cols-2 gap-2">
           <Button variant="secondary" onClick={() => setConfirmOpening(false)}>
-            Batal
+            {t.common.cancel}
           </Button>
           <Button onClick={() => submit()} pending={pending}>
-            Ya, ubah
+            {f.confirmYes}
           </Button>
         </div>
       </div>
@@ -120,28 +121,33 @@ export function AccountForm({
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
-      <Field label="Nama dompet" error={errors.name}>
+      <Field label={f.nameLabel} error={errors.name}>
         {(a11y) => (
           <input
             {...a11y}
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={50}
-            placeholder="Misalnya: Tunai, BCA, GoPay"
+            placeholder={f.namePlaceholder}
             className={inputClass}
             autoFocus={!account}
           />
         )}
       </Field>
       <div className="flex flex-col gap-1.5">
-        <span className="text-sm font-semibold text-ink-soft">Jenis</span>
-        <Segmented label="Jenis dompet" value={type} options={TYPE_OPTIONS} onChange={setType} />
+        <span className="text-sm font-semibold text-ink-soft">{t.common.type}</span>
+        <Segmented
+          label={f.typeLabel}
+          value={type}
+          options={ACCOUNT_TYPES.map((value) => ({ value, label: t.accountType[value] }))}
+          onChange={setType}
+        />
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Saldo awal" error={errors.opening} hint="Boleh negatif bila dompet sedang minus.">
+        <Field label={f.openingLabel} error={errors.opening} hint={f.openingHint}>
           {(a11y) => <MoneyInput {...a11y} value={opening} onValueChange={setOpening} allowNegative />}
         </Field>
-        <Field label="Tanggal mulai pencatatan" error={errors.opened_on}>
+        <Field label={f.openedOnLabel} error={errors.opened_on}>
           {(a11y) => (
             <input
               {...a11y}
@@ -155,12 +161,11 @@ export function AccountForm({
         </Field>
       </div>
       <p className="-mt-1 text-xs text-ink-faint">
-        Saldo awal berlaku pada awal tanggal mulai{isIsoDate(openedOn) ? ` (${formatDateLong(openedOn)})` : ""}. Transaksi sebelum
-        tanggal ini ditolak.
+        {f.openingNote(isIsoDate(openedOn) ? formatDateLong(openedOn, locale) : null)}
       </p>
       {formError ? <Notice tone="error">{formError}</Notice> : null}
       <Button type="submit" size="lg" pending={pending}>
-        {submitLabel ?? (account ? "Simpan perubahan" : "Buat dompet")}
+        {submitLabel ?? (account ? t.common.saveChanges : f.create)}
       </Button>
     </form>
   );

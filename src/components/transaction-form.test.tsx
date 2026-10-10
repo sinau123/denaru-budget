@@ -19,6 +19,7 @@ const service = vi.hoisted(() => ({
 vi.mock("@/lib/api/budget-service", () => service);
 vi.mock("./auth-provider", () => ({ useUserId: () => "user-1" }));
 
+import { I18nProvider } from "./i18n-provider";
 import { TransactionForm } from "./transaction-form";
 
 const today = todayJakarta();
@@ -49,6 +50,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  window.localStorage.clear();
   vi.clearAllMocks();
 });
 
@@ -124,5 +126,23 @@ describe("TransactionForm", () => {
     await user.click(await screen.findByRole("button", { name: /Periksa/ }));
     await waitFor(() => expect(onDone).toHaveBeenCalled());
     expect(service.createTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders labels and validation messages in the chosen language", async () => {
+    window.localStorage.setItem("denaru:locale", "en");
+    const user = userEvent.setup();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <I18nProvider>
+        <QueryClientProvider client={client}>
+          <TransactionForm onDone={vi.fn()} />
+        </QueryClientProvider>
+      </I18nProvider>,
+    );
+    await screen.findByLabelText("Wallet");
+    expect(screen.getByRole("radio", { name: "Expense" })).toHaveProperty("ariaChecked", "true");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("Amount is required.")).toBeTruthy();
+    expect(screen.getByText("Choose a category.")).toBeTruthy();
   });
 });

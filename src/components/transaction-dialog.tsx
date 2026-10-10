@@ -5,6 +5,7 @@ import { createContext, use, useCallback, useMemo, useState } from "react";
 import type { Transaction, TransactionRow, TransactionType } from "@/lib/api/api-types";
 import { formatRupiah } from "@/lib/money-utils";
 
+import { useI18n } from "./i18n-provider";
 import { TransactionForm } from "./transaction-form";
 import { Dialog } from "./ui/dialog";
 
@@ -14,11 +15,10 @@ type Ctx = { openTransaction: (args?: OpenArgs) => void };
 
 const TransactionDialogContext = createContext<Ctx | null>(null);
 
-const DONE_LABEL = { created: "tersimpan", updated: "diperbarui", deleted: "dihapus" } as const;
-
 export function TransactionDialogProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<(OpenArgs & { key: number }) | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const { t } = useI18n();
 
   const openTransaction = useCallback((args: OpenArgs = {}) => {
     // A fresh key remounts the form, which also issues a fresh client ID.
@@ -34,7 +34,7 @@ export function TransactionDialogProvider({ children }: { children: React.ReactN
       <Dialog
         open={!!state}
         onClose={() => setState(null)}
-        title={editing ? "Ubah transaksi" : "Tambah transaksi"}
+        title={editing ? t.transactionDialog.editTitle : t.transactionDialog.addTitle}
       >
         {state ? (
           <TransactionForm
@@ -43,7 +43,7 @@ export function TransactionDialogProvider({ children }: { children: React.ReactN
             defaultType={state.type}
             onDone={({ action, transaction }) => {
               setState(null);
-              setToast(`${formatRupiah(transaction.amount_rupiah)} ${DONE_LABEL[action]}.`);
+              setToast(t.transactionDialog.done[action](formatRupiah(transaction.amount_rupiah)));
               window.setTimeout(() => setToast(null), 3500);
             }}
           />

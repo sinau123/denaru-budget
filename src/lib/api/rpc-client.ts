@@ -53,7 +53,7 @@ export async function callRpc<T>(fn: string, args: Record<string, unknown> = {})
   }
   if (status >= 500 && !error.code) {
     logFailure(fn, `HTTP_${status}`, started);
-    throw new NetworkError("Layanan sedang terganggu. Data belum dapat dipastikan tersimpan.");
+    throw new NetworkError("service");
   }
 
   // RAISE EXCEPTION 'CODE' arrives as message; constraint violations by name.

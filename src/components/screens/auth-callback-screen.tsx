@@ -4,10 +4,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
 import { useAuth } from "../auth-provider";
+import { useI18n } from "../i18n-provider";
 
 /** supabase-js exchanges the PKCE code automatically (detectSessionInUrl). */
 export function AuthCallbackScreen() {
   const auth = useAuth();
+  const { t } = useI18n();
   const router = useRouter();
   const params = useSearchParams();
   const providerError = params.get("error");
@@ -27,7 +29,7 @@ export function AuthCallbackScreen() {
 
   return (
     <main className="grid min-h-dvh place-items-center">
-      <p className="figure animate-pulse text-2xl text-ink-soft">Menyelesaikan login…</p>
+      <p className="figure animate-pulse text-2xl text-ink-soft">{t.login.finishing}</p>
     </main>
   );
 }

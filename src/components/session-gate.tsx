@@ -7,13 +7,15 @@ import { useProfile } from "@/hooks/use-budget-data";
 import { errorMessage } from "@/lib/api/api-errors";
 
 import { useAuth } from "./auth-provider";
+import { useI18n } from "./i18n-provider";
 import { Button } from "./ui/button";
 import { Notice } from "./ui/notice";
 
-function Splash({ label = "Memuat…" }: { label?: string }) {
+function Splash() {
+  const { t } = useI18n();
   return (
     <div className="grid min-h-dvh place-items-center">
-      <p className="figure animate-pulse text-2xl text-ink-soft">{label}</p>
+      <p className="figure animate-pulse text-2xl text-ink-soft">{t.common.loading}</p>
     </div>
   );
 }
@@ -39,6 +41,7 @@ export function RequireOnboarded({ children }: { children: React.ReactNode }) {
   const profile = useProfile();
   const router = useRouter();
   const pathname = usePathname();
+  const { t } = useI18n();
   const needsOnboarding = profile.data && !profile.data.has_accounts;
 
   useEffect(() => {
@@ -51,11 +54,10 @@ export function RequireOnboarded({ children }: { children: React.ReactNode }) {
       <div className="mx-auto grid min-h-dvh max-w-md place-items-center px-4">
         <Notice
           tone="error"
-          title="Tidak dapat terhubung"
-          action={<Button onClick={() => profile.refetch()}>Coba lagi</Button>}
+          title={t.session.connectFailed}
+          action={<Button onClick={() => profile.refetch()}>{t.common.retry}</Button>}
         >
-          {errorMessage(profile.error)} Jika aplikasi lama tidak dipakai, layanan database mungkin sedang dijeda oleh
-          penyedia; data tidak dianggap tersimpan sampai koneksi pulih.
+          {errorMessage(profile.error, t)} {t.session.pausedHint}
         </Notice>
       </div>
     );

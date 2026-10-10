@@ -11,6 +11,7 @@ import { formatDateShort, monthRange, todayJakarta } from "@/lib/date-utils";
 import { formatRupiah } from "@/lib/money-utils";
 
 import { DailyExpenseChart } from "./daily-chart";
+import { useI18n } from "./i18n-provider";
 import { Button } from "./ui/button";
 import { cx } from "./ui/cx";
 import { inputClass } from "./ui/field";
@@ -26,6 +27,7 @@ export function DailyExpenseSection({
   categoryId: string | null;
   onCategoryChange: (id: string | null) => void;
 }) {
+  const { t, locale } = useI18n();
   const categories = useCategories();
   const { from, to } = monthRange(month);
   const daily = useDailyTotals({ from, to, type: "expense", categoryId });
@@ -41,20 +43,20 @@ export function DailyExpenseSection({
     <section className="rounded-3xl border border-rule bg-paper-raised p-5" aria-labelledby="daily-title">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 id="daily-title" className="font-semibold">
-          Pengeluaran harian
+          {t.daily.title}
         </h2>
         <label className="min-w-0 max-w-full">
-          <span className="sr-only">Kategori pengeluaran harian</span>
+          <span className="sr-only">{t.daily.categoryLabel}</span>
           <select
             value={categoryId ?? ""}
             onChange={(e) => onCategoryChange(e.target.value || null)}
             className={cx(inputClass, "h-9 w-auto max-w-full text-sm")}
           >
-            <option value="">Semua kategori</option>
+            <option value="">{t.common.allCategories}</option>
             {options.map(({ category: c, label }) => (
               <option key={c.id} value={c.id}>
                 {label}
-                {c.archived_at ? " (arsip)" : ""}
+                {c.archived_at ? t.common.archivedSuffix : ""}
               </option>
             ))}
           </select>
@@ -63,27 +65,27 @@ export function DailyExpenseSection({
 
       <dl className="mb-4 grid grid-cols-3 gap-2">
         {isCurrentMonth ? (
-          <DayStat label="Hari ini" value={summary.today} loading={loading} />
+          <DayStat label={t.daily.today} value={summary.today} loading={loading} />
         ) : (
-          <DayStat label="Total" value={summary.total} loading={loading} />
+          <DayStat label={t.daily.total} value={summary.total} loading={loading} />
         )}
         <DayStat
-          label="Rata-rata"
+          label={t.daily.average}
           value={summary.average}
-          hint={summary.daysCounted ? `per hari, ${summary.daysCounted} hari` : undefined}
+          hint={summary.daysCounted ? t.daily.averageHint(summary.daysCounted) : undefined}
           loading={loading}
         />
         <DayStat
-          label="Tertinggi"
+          label={t.daily.peak}
           value={summary.peak?.expense_rupiah ?? null}
-          hint={summary.peak ? formatDateShort(summary.peak.date) : undefined}
+          hint={summary.peak ? formatDateShort(summary.peak.date, locale) : undefined}
           loading={loading}
         />
       </dl>
 
       {daily.isError ? (
-        <Notice tone="error" action={<Button size="sm" onClick={() => daily.refetch()}>Coba lagi</Button>}>
-          {errorMessage(daily.error)}
+        <Notice tone="error" action={<Button size="sm" onClick={() => daily.refetch()}>{t.common.retry}</Button>}>
+          {errorMessage(daily.error, t)}
         </Notice>
       ) : loading ? (
         <Skeleton className="h-52" />
@@ -96,7 +98,7 @@ export function DailyExpenseSection({
           href={`/transaksi?bulan=${month}&jenis=expense&kategori=${categoryId}`}
           className="mt-3 inline-block text-sm font-semibold text-accent hover:underline"
         >
-          Lihat transaksinya
+          {t.daily.viewTransactions}
         </Link>
       ) : null}
     </section>

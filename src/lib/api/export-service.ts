@@ -6,7 +6,7 @@ import { EXPORT_PAGE_SIZE, cursorOf, exportTransactionsPage } from "./budget-ser
 
 export class ExportChangedError extends ApiError {
   constructor() {
-    super("EXPORT_CHANGED", "Data berubah selama ekspor. Ekspor dibatalkan; silakan coba lagi.");
+    super("EXPORT_CHANGED");
   }
 }
 
