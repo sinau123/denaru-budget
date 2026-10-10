@@ -1,92 +1,92 @@
-# Denaru — Pencatat Pengeluaran
+# Denaru — Expense Tracker
 
-PWA pribadi untuk mencatat pengeluaran, pemasukan, dan transfer antar dompet (MVP P0 dari PRD v1.1).
+A personal PWA for recording expenses, income, and transfers between wallets (MVP P0 from PRD v1.1).
 Next.js 16 (App Router) + TypeScript + Tailwind, TanStack Query, React Hook Form + Zod, Recharts,
-Supabase (Auth Google, PostgreSQL, RPC), deploy ke Vercel Hobby.
+Supabase (Google Auth, PostgreSQL, RPC), deployed to Vercel Hobby.
 
-## Arsitektur singkat
+## Architecture overview
 
-- **Browser-only data.** Halaman dirender statis; data dimuat di browser setelah login. Tidak ada data
-  pengguna yang dirender di server Next.js atau di-cache di CDN/service worker.
-- **`app_data` schema** menyimpan tabel bisnis (`profiles`, `accounts`, `categories`, `transactions`) dan
-  **tidak diekspos** ke Data API. **`api` schema** hanya berisi RPC `SECURITY INVOKER` dan merupakan
-  satu-satunya schema yang diekspos.
-- **RLS** aktif di semua tabel; identitas selalu dari `auth.uid()`. Grants kolom minimum.
-- **Validasi final di database** (trigger + constraint): nominal, tanggal (Asia/Jakarta), kepemilikan
-  lewat FK gabungan `(user_id, id)`, jenis kategori, referensi arsip, panjang catatan.
-- **Uang** = `bigint` rupiah, dikirim sebagai string digit; browser memakai `BigInt`.
-- **Idempotensi**: ID transaksi dibuat sekali per form dan dipakai ulang saat retry. ID sama + payload
-  sama → hasil lama; payload beda → `IDEMPOTENCY_CONFLICT`. Setelah respons hilang, UI memeriksa
-  `get_transaction(id)` dulu sebelum kirim ulang.
-- **Konflik edit**: `update_transaction`/`delete_transaction` memakai `expected_version` (compare-and-update).
-- **Ekspor CSV**: semua halaman dibaca dulu; `data_version` dibandingkan sebelum/sesudah; file tidak
-  dibuat bila ada halaman gagal atau data berubah. Proteksi formula spreadsheet.
-- **Fondasi Telegram (P1)**: logika simpan ada di `app_data.create_transaction_core(...)` dan kolom
-  `transactions.source` sudah ada, sehingga RPC bot nanti memakai aturan yang sama.
+- **Browser-only data.** Pages are rendered statically; data is loaded in the browser after login. No user
+  data is rendered on the Next.js server or cached in the CDN/service worker.
+- **`app_data` schema** holds the business tables (`profiles`, `accounts`, `categories`, `transactions`) and
+  is **not exposed** to the Data API. The **`api` schema** contains only `SECURITY INVOKER` RPCs and is the
+  only exposed schema.
+- **RLS** is enabled on every table; identity always comes from `auth.uid()`. Minimal column grants.
+- **Final validation happens in the database** (triggers + constraints): amount, date (Asia/Jakarta),
+  ownership via composite FK `(user_id, id)`, category type, archived references, note length.
+- **Money** = `bigint` rupiah, sent as a digit string; the browser uses `BigInt`.
+- **Idempotency**: a transaction ID is generated once per form and reused on retry. Same ID + same payload
+  → previous result; different payload → `IDEMPOTENCY_CONFLICT`. If a response is lost, the UI checks
+  `get_transaction(id)` before resubmitting.
+- **Edit conflicts**: `update_transaction`/`delete_transaction` use `expected_version` (compare-and-update).
+- **CSV export**: all pages are read first; `data_version` is compared before/after; no file is produced
+  if any page fails or the data changes. Spreadsheet formula injection protection.
+- **Telegram foundation (P1)**: the save logic lives in `app_data.create_transaction_core(...)` and the
+  `transactions.source` column already exists, so a future bot RPC will use the same rules.
 
 ```
 supabase/migrations/   schema, RLS, triggers, RPC
 src/lib/               money/date/csv utils, Supabase client, RPC wrapper, services
-src/components/        UI, form transaksi, screens
-src/app/               routes: / (ringkasan), /transaksi, /dompet, /pengaturan, /login, /onboarding
-tests/db/              aturan bisnis & RLS dijalankan di PGlite (Postgres in-process)
-tests/e2e/             Playwright smoke test dengan backend tiruan
+src/components/        UI, transaction form, screens
+src/app/               routes: / (summary), /transaksi, /dompet, /pengaturan, /login, /onboarding
+tests/db/              business rules & RLS run on PGlite (in-process Postgres)
+tests/e2e/             Playwright smoke test with a fake backend
 ```
 
-## Menjalankan lokal
+## Running locally
 
-Prasyarat: Node 22, pnpm 9, Docker (untuk Supabase lokal).
+Prerequisites: Node 22, pnpm 9, Docker (for local Supabase).
 
 ```bash
 pnpm install
-cp .env.example .env.local          # isi kredensial Google OAuth untuk login lokal
-pnpm db:start                       # supabase start; catat API URL + publishable/anon key
-# isi NEXT_PUBLIC_SUPABASE_URL dan NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY di .env.local
-pnpm db:reset                       # terapkan migration
-pnpm db:types                       # opsional: hasilkan tipe dari schema api
+cp .env.example .env.local          # fill in Google OAuth credentials for local login
+pnpm db:start                       # supabase start; note the API URL + publishable/anon key
+# set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in .env.local
+pnpm db:reset                       # apply migrations
+pnpm db:types                       # optional: generate types from the api schema
 pnpm dev
 ```
 
-Google OAuth lokal: buat OAuth client (Web) di Google Cloud Console, tambahkan redirect URI
-`http://127.0.0.1:54321/auth/v1/callback`, lalu isi `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID/SECRET`.
+Local Google OAuth: create an OAuth client (Web) in Google Cloud Console, add the redirect URI
+`http://127.0.0.1:54321/auth/v1/callback`, then fill in `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID/SECRET`.
 
-## Pengujian
+## Testing
 
 ```bash
-pnpm test        # unit + komponen + aturan database (PGlite, tanpa Docker)
-pnpm test:e2e    # build produksi + Playwright (mobile 360px & desktop) dengan backend tiruan
+pnpm test        # unit + component + database rules (PGlite, no Docker)
+pnpm test:e2e    # production build + Playwright (mobile 360px & desktop) with a fake backend
 pnpm typecheck && pnpm lint
 ```
 
-`tests/db/business-rules.test.ts` mencakup skenario saldo bagian 04 PRD, validasi nominal/tanggal,
-idempotensi, konflik versi, referensi arsip, isolasi user A/B/anon, pagination, filter transfer, dan
-`data_version`. Uji yang masih perlu dilakukan manual sebelum pilot: login Google nyata, instalasi PWA di
-Chrome Android & Safari iPhone, pengukuran LCP/p95 pada dataset 10.000 transaksi, dan latihan restore.
+`tests/db/business-rules.test.ts` covers the balance scenarios from PRD section 04, amount/date validation,
+idempotency, version conflicts, archived references, user A/B/anon isolation, pagination, transfer filters, and
+`data_version`. Tests still to be done manually before the pilot: real Google login, PWA installation on
+Chrome Android & Safari iPhone, LCP/p95 measurement on a 10,000-transaction dataset, and a restore drill.
 
-## Deploy produksi
+## Production deployment
 
-1. **Supabase** (proyek Free, terpisah dari development):
-   - `supabase link --project-ref <ref>` lalu `supabase db push`.
-   - Settings → API → *Exposed schemas*: isi **hanya `api`** (hapus `public`, `graphql_public`).
-   - Authentication → Providers → Google: aktifkan, isi client ID/secret.
-   - Authentication → URL Configuration: Site URL = domain Vercel, Redirect URLs =
+1. **Supabase** (Free project, separate from development):
+   - `supabase link --project-ref <ref>` then `supabase db push`.
+   - Settings → API → *Exposed schemas*: set **only `api`** (remove `public`, `graphql_public`).
+   - Authentication → Providers → Google: enable it and fill in the client ID/secret.
+   - Authentication → URL Configuration: Site URL = Vercel domain, Redirect URLs =
      `https://<domain>/auth/callback`.
-2. **Google Cloud**: consent screen (scope email & profile), redirect URI
+2. **Google Cloud**: consent screen (email & profile scopes), redirect URI
    `https://<ref>.supabase.co/auth/v1/callback`.
-3. **Vercel Hobby**: impor repo, set `NEXT_PUBLIC_SUPABASE_URL` dan
-   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (Production). Preview deployment harus memakai proyek
-   Supabase development, **bukan** produksi. Jangan pernah menaruh service role key di env `NEXT_PUBLIC_*`.
+3. **Vercel Hobby**: import the repo, set `NEXT_PUBLIC_SUPABASE_URL` and
+   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (Production). Preview deployments must use the development
+   Supabase project, **not** production. Never put the service role key in a `NEXT_PUBLIC_*` env var.
 
-## Runbook operasional
+## Operations runbook
 
-- **Backup mingguan & sebelum migration berisiko** (Free tidak punya backup otomatis):
-  `BACKUP_GPG_RECIPIENT=<key> pnpm db:backup` → arsip terenkripsi berisi roles, schema, data
-  (termasuk `auth.users` untuk pemetaan identitas). Simpan di luar proyek.
-- **Restore** (latih di proyek terpisah sebelum pilot): dekripsi, lalu `psql` berurutan
-  `roles.sql`, `schema.sql`, `data.sql` ke database target; verifikasi jumlah transaksi & saldo.
-- **Proyek dijeda** (7 hari tanpa aktivitas): pulihkan dari dashboard Supabase. UI menampilkan gagal
-  terhubung dan tidak pernah mengklaim data tersimpan.
-- **Kuota**: tinjau usage Supabase & Vercel tiap bulan; evaluasi bila melewati 70% kuota database/egress.
-  Jangan aktifkan add-on berbayar otomatis.
-- **Rollback aplikasi**: promosikan deployment Vercel sebelumnya. Migration bersifat maju; siapkan
-  migration koreksi bila perlu.
+- **Weekly backups & before risky migrations** (the Free plan has no automatic backups):
+  `BACKUP_GPG_RECIPIENT=<key> pnpm db:backup` → encrypted archive containing roles, schema, and data
+  (including `auth.users` for identity mapping). Store it outside the project.
+- **Restore** (rehearse on a separate project before the pilot): decrypt, then `psql` in order
+  `roles.sql`, `schema.sql`, `data.sql` into the target database; verify transaction counts & balances.
+- **Paused project** (after 7 days of inactivity): restore it from the Supabase dashboard. The UI shows a
+  connection failure and never claims data was saved.
+- **Quotas**: review Supabase & Vercel usage monthly; reassess if usage exceeds 70% of the database/egress quota.
+  Don't enable paid add-ons automatically.
+- **App rollback**: promote the previous Vercel deployment. Migrations are forward-only; prepare a
+  corrective migration if needed.
