@@ -1,0 +1,132 @@
+import type { Page, Route } from "@playwright/test";
+
+export const SUPABASE_URL = "http://127.0.0.1:54399";
+const STORAGE_KEY = "sb-127-auth-token";
+
+function today() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
+}
+
+type Txn = {
+  id: string; type: "income" | "expense" | "transfer"; amount_rupiah: string; account_id: string;
+  to_account_id: string | null; category_id: string | null; occurred_on: string; note: string;
+  version: number; created_at: string; updated_at: string; source: "web";
+};
+
+/** A tiny in-memory imitation of the api.* RPCs, enough to drive the UI. */
+export async function installFakeBackend(page: Page, opts: { onboarded?: boolean } = {}) {
+  const userId = "00000000-0000-4000-8000-0000000000e2";
+  const monthStart = `${today().slice(0, 8)}01`;
+  const accounts = opts.onboarded === false ? [] : [
+    { id: "acc-cash", name: "Tunai", type: "cash", opening_balance_rupiah: "500000", opened_on: monthStart, archived_at: null, created_at: "2026-01-01T00:00:00Z" },
+    { id: "acc-bank", name: "Bank BCA", type: "bank", opening_balance_rupiah: "1000000", opened_on: monthStart, archived_at: null, created_at: "2026-01-02T00:00:00Z" },
+  ];
+  const categories = [
+    { id: "cat-food", name: "Makanan", type: "expense", seed_key: "expense_food", archived_at: null, created_at: "" },
+    { id: "cat-transport", name: "Transportasi", type: "expense", seed_key: "expense_transport", archived_at: null, created_at: "" },
+    { id: "cat-salary", name: "Gaji", type: "income", seed_key: "income_salary", archived_at: null, created_at: "" },
+  ];
+  const txns: Txn[] = [];
+  let dataVersion = 1;
+  const calls: string[] = [];
+
+  const add = (t: Omit<Txn, "version" | "created_at" | "updated_at" | "source">) => {
+    const now = new Date().toISOString();
+    const row: Txn = { ...t, version: 1, created_at: now, updated_at: now, source: "web" };
+    txns.push(row);
+    dataVersion++;
+    return row;
+  };
+  if (opts.onboarded !== false) {
+    add({ id: "t1", type: "expense", amount_rupiah: "25000", account_id: "acc-cash", to_account_id: null, category_id: "cat-food", occurred_on: monthStart, note: "Nasi padang, es teh" });
+    add({ id: "t2", type: "income", amount_rupiah: "2000000", account_id: "acc-bank", to_account_id: null, category_id: "cat-salary", occurred_on: monthStart, note: "" });
+    add({ id: "t3", type: "transfer", amount_rupiah: "100000", account_id: "acc-bank", to_account_id: "acc-cash", category_id: null, occurred_on: monthStart, note: "Tarik tunai" });
+  }
+
+  const balance = (id: string) => {
+    const a = accounts.find((x) => x.id === id)!;
+    let b = BigInt(a.opening_balance_rupiah);
+    for (const t of txns) {
+      const v = BigInt(t.amount_rupiah);
+      if (t.type === "income" && t.account_id === id) b += v;
+      if (t.type === "expense" && t.account_id === id) b -= v;
+      if (t.type === "transfer" && t.account_id === id) b -= v;
+      if (t.type === "transfer" && t.to_account_id === id) b += v;
+    }
+    return b.toString();
+  };
+  const row = (t: Txn) => ({
+    ...t,
+    account_name: accounts.find((a) => a.id === t.account_id)?.name,
+    to_account_name: accounts.find((a) => a.id === t.to_account_id)?.name ?? null,
+    category_name: categories.find((c) => c.id === t.category_id)?.name ?? null,
+  });
+
+  const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
+    get_profile: () => ({ id: userId, display_name: "Dewi Lestari", timezone: "Asia/Jakarta", currency: "IDR", data_version: String(dataVersion), has_accounts: accounts.length > 0, today: today() }),
+    bootstrap_user: () => handlers.get_profile({}),
+    get_accounts: () => accounts.map((a) => ({
+      ...a, balance_rupiah: balance(a.id),
+      transaction_count: txns.filter((t) => t.account_id === a.id || t.to_account_id === a.id).length,
+      earliest_occurred_on: null, last_used_at: null,
+    })),
+    create_account: (a) => {
+      const acc = { id: a.p_id as string, name: a.p_name as string, type: a.p_type as string, opening_balance_rupiah: a.p_opening_balance_rupiah as string, opened_on: a.p_opened_on as string, archived_at: null, created_at: new Date().toISOString() };
+      accounts.push(acc);
+      return acc;
+    },
+    list_categories: () => categories,
+    create_transaction: (a) => {
+      const existing = txns.find((t) => t.id === a.p_id);
+      if (existing) return { ...existing, replayed: true };
+      return add({ id: a.p_id as string, type: a.p_type as Txn["type"], amount_rupiah: a.p_amount_rupiah as string, account_id: a.p_account_id as string, to_account_id: (a.p_to_account_id as string) ?? null, category_id: (a.p_category_id as string) ?? null, occurred_on: a.p_occurred_on as string, note: (a.p_note as string) ?? "" });
+    },
+    get_transaction: (a) => txns.find((t) => t.id === a.p_id) ?? null,
+    list_transactions: (a) => txns
+      .filter((t) => !a.p_from || t.occurred_on >= (a.p_from as string))
+      .filter((t) => !a.p_account_id || t.account_id === a.p_account_id || t.to_account_id === a.p_account_id)
+      .filter((t) => !a.p_search || t.note.toLowerCase().includes(String(a.p_search).toLowerCase()))
+      .slice().reverse().map(row),
+    export_transactions: () => txns.slice().reverse().map(row),
+    get_dashboard: (a) => {
+      const inPeriod = txns.filter((t) => t.occurred_on >= (a.p_from as string) && t.occurred_on < (a.p_to as string));
+      const sum = (type: string) => inPeriod.filter((t) => t.type === type).reduce((s, t) => s + BigInt(t.amount_rupiah), 0n);
+      const income = sum("income"), expense = sum("expense");
+      const days: { date: string; expense_rupiah: string; income_rupiah: string }[] = [];
+      for (let d = new Date(`${a.p_from}T00:00:00Z`); d.toISOString().slice(0, 10) < (a.p_to as string); d.setUTCDate(d.getUTCDate() + 1)) {
+        const iso = d.toISOString().slice(0, 10);
+        const e = inPeriod.filter((t) => t.type === "expense" && t.occurred_on === iso).reduce((s, t) => s + BigInt(t.amount_rupiah), 0n);
+        days.push({ date: iso, expense_rupiah: e.toString(), income_rupiah: "0" });
+      }
+      const byCat = categories.filter((c) => c.type === "expense").map((c) => ({
+        category_id: c.id, name: c.name, archived: false, count: 1,
+        total_rupiah: inPeriod.filter((t) => t.category_id === c.id).reduce((s, t) => s + BigInt(t.amount_rupiah), 0n).toString(),
+      })).filter((c) => c.total_rupiah !== "0");
+      return { from: a.p_from, to: a.p_to, income_rupiah: income.toString(), expense_rupiah: expense.toString(), net_rupiah: (income - expense).toString(), expense_by_category: byCat, income_by_category: [], daily: days };
+    },
+  };
+
+  await page.route(`${SUPABASE_URL}/rest/v1/rpc/*`, async (route: Route) => {
+    const fn = new URL(route.request().url()).pathname.split("/").pop()!;
+    calls.push(fn);
+    const args = route.request().postDataJSON() ?? {};
+    const handler = handlers[fn];
+    if (!handler) return route.fulfill({ status: 404, json: { code: "PGRST202", message: `no ${fn}` } });
+    return route.fulfill({ status: 200, json: handler(args) });
+  });
+  await page.route(`${SUPABASE_URL}/auth/v1/**`, (route) => route.fulfill({ status: 204, body: "" }));
+
+  // A signed-in session as supabase-js stores it.
+  const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString("base64url");
+  const exp = Math.floor(Date.now() / 1000) + 3600;
+  const token = `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub: userId, exp, role: "authenticated" })}.sig`;
+  const session = {
+    access_token: token, refresh_token: "r", token_type: "bearer", expires_in: 3600, expires_at: exp,
+    user: { id: userId, aud: "authenticated", role: "authenticated", email: "dewi@example.com", app_metadata: {}, user_metadata: { full_name: "Dewi Lestari" }, created_at: "2026-01-01T00:00:00Z" },
+  };
+  await page.addInitScript(([key, value]) => {
+    if (!sessionStorage.getItem("e2e-signed-out")) localStorage.setItem(key, value);
+  }, [STORAGE_KEY, JSON.stringify(session)] as const);
+
+  return { calls, txns };
+}

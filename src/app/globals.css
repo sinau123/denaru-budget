@@ -1,26 +1,142 @@
 @import "tailwindcss";
 
+/* "Ledger paper": warm paper surface, ink text, one money-green accent and a
+   terracotta for outflow. Figures use tabular numerals everywhere. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --paper: #f5f1e8;
+  --paper-raised: #fbf9f4;
+  --paper-sunken: #ece6d8;
+  --ink: #1d1b16;
+  --ink-soft: #5d584c;
+  --ink-faint: #8a8475;
+  --rule: #ddd5c4;
+  --accent: #1d5c45;
+  --accent-ink: #f5f1e8;
+  --accent-soft: #d8e6dc;
+  --inflow: #1d6b4c;
+  --outflow: #a8432a;
+  --outflow-soft: #f3ddd4;
+  --warn: #8a5a00;
+  --warn-soft: #f6e8c6;
+  --focus: #1d5c45;
+  --chart-bar: #2f7a5c;
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --paper: #15140f;
+    --paper-raised: #1e1c16;
+    --paper-sunken: #0f0e0a;
+    --ink: #efe9dc;
+    --ink-soft: #b9b2a2;
+    --ink-faint: #8a8475;
+    --rule: #34312a;
+    --accent: #7cc4a2;
+    --accent-ink: #10231a;
+    --accent-soft: #1f3a2e;
+    --inflow: #84cfab;
+    --outflow: #ee9a80;
+    --outflow-soft: #3d241c;
+    --warn: #f0c46a;
+    --warn-soft: #3a2f16;
+    --focus: #7cc4a2;
+    --chart-bar: #6bb894;
+    color-scheme: dark;
   }
 }
 
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-raised: var(--paper-raised);
+  --color-paper-sunken: var(--paper-sunken);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-rule: var(--rule);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-inflow: var(--inflow);
+  --color-outflow: var(--outflow);
+  --color-outflow-soft: var(--outflow-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body), ui-sans-serif, sans-serif;
+  font-feature-settings: "tnum" 1;
+  min-width: 320px;
+}
+
+/* Faint ruled-paper texture on the page background. */
+.ledger-bg {
+  background-image:
+    linear-gradient(to bottom, transparent calc(100% - 1px), color-mix(in oklab, var(--rule) 45%, transparent) 1px);
+  background-size: 100% 2.25rem;
+}
+
+.figure {
+  font-family: var(--font-display), ui-serif, serif;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-optical-sizing: auto;
+  letter-spacing: -0.01em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+dialog::backdrop {
+  background: rgb(20 18 12 / 0.45);
+  backdrop-filter: blur(2px);
+}
+
+dialog[open] {
+  animation: sheet-in 180ms ease-out;
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 320ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }
