@@ -1,13 +1,25 @@
 "use client";
 
-import type { TransactionRow } from "@/lib/api/api-types";
+import type { DailyTotal, TransactionRow } from "@/lib/api/api-types";
 import { relativeDayLabel, todayJakarta } from "@/lib/date-utils";
 import { formatRupiah, sumRupiah } from "@/lib/money-utils";
 
 import { cx } from "./ui/cx";
 
-/** History grouped by day. Notes are rendered as plain text only. */
-export function TransactionList({ rows, onSelect }: { rows: TransactionRow[]; onSelect: (row: TransactionRow) => void }) {
+/**
+ * History grouped by day. Notes are rendered as plain text only. Day headers use
+ * the server's per-day totals when available (they cover rows not loaded yet)
+ * and fall back to summing the loaded rows.
+ */
+export function TransactionList({
+  rows,
+  dayTotals,
+  onSelect,
+}: {
+  rows: TransactionRow[];
+  dayTotals?: ReadonlyMap<string, DailyTotal>;
+  onSelect: (row: TransactionRow) => void;
+}) {
   const today = todayJakarta();
   const groups: { date: string; rows: TransactionRow[] }[] = [];
   for (const row of rows) {
@@ -19,14 +31,27 @@ export function TransactionList({ rows, onSelect }: { rows: TransactionRow[]; on
   return (
     <div className="flex flex-col gap-5">
       {groups.map((g) => {
-        const net = sumRupiah(
-          g.rows.filter((r) => r.type !== "transfer").map((r) => (r.type === "expense" ? `-${r.amount_rupiah}` : r.amount_rupiah)),
-        );
+        const server = dayTotals?.get(g.date);
+        const sumOf = (type: TransactionRow["type"]) =>
+          sumRupiah(g.rows.filter((r) => r.type === type).map((r) => r.amount_rupiah));
+        const expense = server?.expense_rupiah ?? sumOf("expense");
+        const income = server?.income_rupiah ?? sumOf("income");
         return (
           <section key={g.date} aria-label={relativeDayLabel(g.date, today)}>
-            <div className="mb-1.5 flex items-baseline justify-between px-1 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+            <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-3 px-1 text-xs font-semibold uppercase tracking-wide text-ink-faint">
               <h3>{relativeDayLabel(g.date, today)}</h3>
-              <span className="figure normal-case tracking-normal">{formatRupiah(net, { signed: true })}</span>
+              <p className="figure flex gap-3 normal-case tracking-normal">
+                {expense !== "0" ? (
+                  <span className="text-outflow">
+                    <span className="sr-only">Pengeluaran </span>−{formatRupiah(expense)}
+                  </span>
+                ) : null}
+                {income !== "0" ? (
+                  <span className="text-inflow">
+                    <span className="sr-only">Pemasukan </span>+{formatRupiah(income)}
+                  </span>
+                ) : null}
+              </p>
             </div>
             <ul className="divide-y divide-rule overflow-hidden rounded-2xl border border-rule bg-paper-raised">
               {g.rows.map((r) => (

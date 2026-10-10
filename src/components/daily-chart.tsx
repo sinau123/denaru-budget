@@ -2,7 +2,7 @@
 
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-import type { Dashboard } from "@/lib/api/api-types";
+import type { DailyExpense } from "@/lib/daily-utils";
 import { formatDateLong, formatDateShort } from "@/lib/date-utils";
 import { formatRupiah, rupiahToChartNumber } from "@/lib/money-utils";
 
@@ -11,7 +11,7 @@ const compact = new Intl.NumberFormat("id-ID", { notation: "compact", maximumFra
 type Point = { date: string; label: string; value: number; raw: string };
 
 /** Single-series daily expense bars, with an equivalent data table for screen readers. */
-export function DailyExpenseChart({ daily }: { daily: Dashboard["daily"] }) {
+export function DailyExpenseChart({ daily }: { daily: readonly DailyExpense[] }) {
   const data: Point[] = daily.map((d) => ({
     date: d.date,
     label: String(Number(d.date.slice(8))),

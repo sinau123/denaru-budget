@@ -329,3 +329,95 @@ describe("history and export", () => {
     expect(BigInt(after.data_version) - BigInt(before.data_version)).toBe(2n);
   });
 });
+
+describe("sub-categories and daily totals", () => {
+  const USER_C = "cccccccc-0000-4000-8000-000000000003";
+  const WALLET = "10000000-0000-4000-8000-0000000000c1";
+  const SNACK = "20000000-0000-4000-8000-0000000000c1";
+  const FRUIT = "20000000-0000-4000-8000-0000000000c2";
+  let food: string;
+  let transport: string;
+
+  type Row = { id: string; category_name: string | null };
+  type Day = { occurred_on: string; expense_rupiah: string; income_rupiah: string; expense_count: number };
+  type CatTotal = { category_id: string; total_rupiah: string; children: { category_id: string; total_rupiah: string }[] };
+
+  beforeAll(async () => {
+    await db.createUser(USER_C);
+    await db.rpc(USER_C, "api.bootstrap_user('Pengguna C')");
+    await db.rpc(USER_C, "api.create_account($1::uuid, 'Tunai', 'cash', '0', $2::date)", [WALLET, MONTH_START]);
+    food = await categoryId(USER_C, "expense_food");
+    transport = await categoryId(USER_C, "expense_transport");
+  });
+
+  it("creates children under a top-level category of the same type", async () => {
+    const snack = await db.rpc<{ parent_id: string }>(USER_C, "api.create_category($1::uuid, 'Jajan', 'expense', $2::uuid)", [SNACK, food]);
+    expect(snack.parent_id).toBe(food);
+    // Retrying with the same payload is idempotent; a different parent is a conflict.
+    await db.rpc(USER_C, "api.create_category($1::uuid, 'Jajan', 'expense', $2::uuid)", [SNACK, food]);
+    expect(await errorOf(db.rpc(USER_C, "api.create_category($1::uuid, 'Jajan', 'expense', $2::uuid)", [SNACK, transport]))).toBe("IDEMPOTENCY_CONFLICT");
+    await db.rpc(USER_C, "api.create_category($1::uuid, 'Buah', 'expense', $2::uuid)", [FRUIT, food]);
+
+    const rows = await db.as<{ id: string; parent_id: string | null }>(USER_C, "select * from api.list_categories() where parent_id is not null");
+    expect(rows.map((r) => r.id).sort()).toEqual([SNACK, FRUIT].sort());
+  });
+
+  it("rejects deeper nesting, type mismatches, self-parents and other users' parents", async () => {
+    const salary = await categoryId(USER_C, "income_salary");
+    expect(await errorOf(db.rpc(USER_C, "api.create_category(gen_random_uuid(), 'Gaji jajan', 'income', $1::uuid)", [food]))).toBe("CATEGORY_PARENT_INVALID");
+    expect(await errorOf(db.rpc(USER_C, "api.create_category(gen_random_uuid(), 'Permen', 'expense', $1::uuid)", [SNACK]))).toBe("CATEGORY_PARENT_INVALID");
+    expect(await errorOf(db.rpc(USER_C, "api.update_category($1::uuid, 'Makanan', $1::uuid)", [food]))).toMatch(/CATEGORY_PARENT_INVALID|categories_parent_not_self/);
+    expect(await errorOf(db.rpc(USER_C, "api.update_category($1::uuid, 'Makanan', $2::uuid)", [food, transport]))).toBe("CATEGORY_HAS_CHILDREN");
+    expect(await errorOf(db.rpc(USER_C, "api.update_category($1::uuid, 'Gaji', $2::uuid)", [salary, food]))).toBe("CATEGORY_PARENT_INVALID");
+    const otherFood = await categoryId(USER_A, "expense_food");
+    expect(await errorOf(db.rpc(USER_C, "api.create_category(gen_random_uuid(), 'Curian', 'expense', $1::uuid)", [otherFood]))).toBe("CATEGORY_NOT_FOUND");
+  });
+
+  it("refuses an archived parent but keeps children of a parent archived later", async () => {
+    const id = "20000000-0000-4000-8000-0000000000c3";
+    await db.rpc(USER_C, "api.create_category($1::uuid, 'Ojek', 'expense', $2::uuid)", [id, transport]);
+    await db.rpc(USER_C, "api.set_category_archived($1::uuid, true)", [transport]);
+    expect(await errorOf(db.rpc(USER_C, "api.create_category(gen_random_uuid(), 'Taksi', 'expense', $1::uuid)", [transport]))).toBe("ARCHIVED_REFERENCE");
+    // Renaming a child keeps its (now archived) parent.
+    await db.rpc(USER_C, "api.update_category($1::uuid, 'Ojek online', $2::uuid)", [id, transport]);
+    // Moving it to the top level is always allowed.
+    const moved = await db.rpc<{ parent_id: string | null }>(USER_C, "api.update_category($1::uuid, 'Ojek online', null)", [id]);
+    expect(moved.parent_id).toBeNull();
+    await db.rpc(USER_C, "api.set_category_archived($1::uuid, false)", [transport]);
+  });
+
+  it("filters by a parent including its children and rolls them up on the dashboard", async () => {
+    const day1 = MONTH_START;
+    await createTxn(USER_C, { id: "30000000-0000-4000-8000-0000000000c1", type: "expense", amount: "10000", account: WALLET, category: food, on: day1 });
+    await createTxn(USER_C, { id: "30000000-0000-4000-8000-0000000000c2", type: "expense", amount: "5000", account: WALLET, category: SNACK, on: day1 });
+    await createTxn(USER_C, { id: "30000000-0000-4000-8000-0000000000c3", type: "expense", amount: "7000", account: WALLET, category: FRUIT, on: TODAY });
+    await createTxn(USER_C, { id: "30000000-0000-4000-8000-0000000000c4", type: "expense", amount: "20000", account: WALLET, category: transport, on: TODAY });
+
+    const all = await db.as<Row>(USER_C, "select * from api.list_transactions(p_category_id => $1::uuid)", [food]);
+    expect(all).toHaveLength(3);
+    expect(all.map((r) => r.category_name).sort()).toEqual(["Makanan", "Makanan › Buah", "Makanan › Jajan"]);
+    const child = await db.as<Row>(USER_C, "select * from api.list_transactions(p_category_id => $1::uuid)", [SNACK]);
+    expect(child.map((r) => r.id)).toEqual(["30000000-0000-4000-8000-0000000000c2"]);
+
+    const d = await db.rpc<{ expense_by_category: CatTotal[] }>(USER_C, "api.get_dashboard($1::date, $2::date)", [MONTH_START, NEXT_MONTH_START]);
+    const foodTotal = d.expense_by_category.find((c) => c.category_id === food)!;
+    expect(foodTotal.total_rupiah).toBe("22000");
+    expect(foodTotal.children.map((c) => [c.category_id, c.total_rupiah])).toEqual([[FRUIT, "7000"], [SNACK, "5000"]]);
+    expect(d.expense_by_category.some((c) => c.category_id === SNACK)).toBe(false);
+  });
+
+  it("returns per-day totals for the same filters, without transfers", async () => {
+    const days = await db.as<Day>(USER_C, "select occurred_on::text as occurred_on, expense_rupiah from api.get_daily_totals($1::date, $2::date)", [MONTH_START, NEXT_MONTH_START]);
+    const byDay = Object.fromEntries(days.map((d) => [d.occurred_on, d.expense_rupiah]));
+    if (TODAY === MONTH_START) {
+      expect(byDay).toEqual({ [TODAY]: "42000" });
+    } else {
+      expect(byDay).toEqual({ [MONTH_START]: "15000", [TODAY]: "27000" });
+    }
+    const foodDays = await db.as<Day>(USER_C, "select * from api.get_daily_totals($1::date, $2::date, p_category_id => $3::uuid)", [MONTH_START, NEXT_MONTH_START, food]);
+    expect(foodDays.reduce((s, d) => s + BigInt(d.expense_rupiah), 0n)).toBe(22000n);
+    expect(await errorOf(db.as(USER_C, "select * from api.get_daily_totals($1::date, $1::date)", [MONTH_START]))).toBe("PERIOD_INVALID");
+    expect(await db.as(USER_A, "select * from api.get_daily_totals(p_category_id => $1::uuid)", [food])).toEqual([]);
+    expect(await errorOf(db.as(null, "select * from api.get_daily_totals()"))).toMatch(/permission denied/);
+  });
+});

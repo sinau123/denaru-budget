@@ -41,6 +41,11 @@ const MESSAGES: Record<string, { message: string; field?: string }> = {
   ACCOUNT_NOT_FOUND: { message: "Dompet tidak ditemukan.", field: "account_id" },
   CATEGORY_NOT_FOUND: { message: "Kategori tidak ditemukan.", field: "category_id" },
   CATEGORY_REQUIRED: { message: "Pilih kategori.", field: "category_id" },
+  CATEGORY_PARENT_INVALID: {
+    message: "Induk harus kategori utama dengan jenis yang sama (sub-kategori hanya satu tingkat).",
+    field: "parent_id",
+  },
+  CATEGORY_HAS_CHILDREN: { message: "Kategori yang punya sub-kategori tidak bisa dijadikan sub-kategori." },
   CATEGORY_TYPE_MISMATCH: { message: "Jenis kategori tidak sesuai dengan jenis transaksi.", field: "category_id" },
   ARCHIVED_REFERENCE: { message: "Dompet atau kategori yang diarsipkan tidak dapat dipilih." },
   SAME_ACCOUNT: { message: "Dompet asal dan tujuan harus berbeda.", field: "to_account_id" },

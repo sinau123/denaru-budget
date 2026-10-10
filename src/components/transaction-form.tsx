@@ -9,6 +9,7 @@ import { useAccounts, useCategories, useInvalidateUserData } from "@/hooks/use-b
 import { ApiError, NetworkError, SessionExpiredError, errorMessage } from "@/lib/api/api-errors";
 import type { Account, Transaction, TransactionInput, TransactionRow, TransactionType } from "@/lib/api/api-types";
 import { createTransaction, deleteTransaction, getTransaction, updateTransaction } from "@/lib/api/budget-service";
+import { flattenCategories } from "@/lib/category-utils";
 import { formatDateLong, isIsoDate, todayJakarta } from "@/lib/date-utils";
 import { formatRupiah, validateRupiah } from "@/lib/money-utils";
 
@@ -163,7 +164,8 @@ function TransactionFormInner({
   const accountOptions = accounts.filter(
     (a) => !a.archived_at || a.id === transaction?.account_id || a.id === transaction?.to_account_id,
   );
-  const categoryOptions = categories.filter(
+  const categoryOptions = flattenCategories(
+    categories,
     (c) => c.type === type && (!c.archived_at || c.id === transaction?.category_id),
   );
   const minDate = accounts.find((a) => a.id === accountId)?.opened_on;
@@ -395,9 +397,9 @@ function TransactionFormInner({
             {(a11y) => (
               <select {...a11y} {...register("category_id")} className={inputClass} disabled={disabled}>
                 <option value="">Pilih kategori</option>
-                {categoryOptions.map((c) => (
+                {categoryOptions.map(({ category: c, label }) => (
                   <option key={c.id} value={c.id}>
-                    {c.name}
+                    {label}
                     {c.archived_at ? " (arsip)" : ""}
                   </option>
                 ))}

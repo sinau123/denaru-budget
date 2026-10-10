@@ -9,6 +9,7 @@ import {
   PAGE_SIZE,
   cursorOf,
   getAccounts,
+  getDailyTotals,
   getDashboard,
   listCategories,
   listTransactions,
@@ -51,6 +52,17 @@ export function useTransactions(filters: TransactionFilters) {
     queryFn: ({ pageParam }) => listTransactions(filters, pageParam),
     initialPageParam: null as ReturnType<typeof cursorOf> | null,
     getNextPageParam: (lastPage) => (lastPage.length === PAGE_SIZE ? cursorOf(lastPage[lastPage.length - 1]) : undefined),
+  });
+}
+
+/** Per-day income/expense totals for the same filters as the history. */
+export function useDailyTotals(filters: TransactionFilters, enabled = true) {
+  const userId = useUserId();
+  return useQuery({
+    queryKey: queryKeys.dailyTotals(userId, filters),
+    queryFn: () => getDailyTotals(filters),
+    enabled,
+    placeholderData: (prev) => prev,
   });
 }
 

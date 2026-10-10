@@ -9,4 +9,5 @@ export const queryKeys = {
   categories: (userId: string) => [userId, "categories"] as const,
   dashboard: (userId: string, month: string) => [userId, "dashboard", month] as const,
   transactions: (userId: string, filters: TransactionFilters) => [userId, "transactions", filters] as const,
+  dailyTotals: (userId: string, filters: TransactionFilters) => [userId, "daily-totals", filters] as const,
 };

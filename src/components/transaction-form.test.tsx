@@ -28,9 +28,9 @@ const accounts: Account[] = [
   { id: "acc-old", name: "Lama", type: "ewallet", opening_balance_rupiah: "0", opened_on: "2026-01-01", archived_at: "2026-02-01T00:00:00Z", balance_rupiah: "0", transaction_count: 1, earliest_occurred_on: null, last_used_at: "2026-09-01T00:00:00Z", created_at: "2026-01-01T00:00:00Z" },
 ];
 const categories: Category[] = [
-  { id: "cat-food", name: "Makanan", type: "expense", seed_key: "expense_food", archived_at: null, created_at: "" },
-  { id: "cat-old", name: "Lama", type: "expense", seed_key: null, archived_at: "2026-02-01T00:00:00Z", created_at: "" },
-  { id: "cat-salary", name: "Gaji", type: "income", seed_key: "income_salary", archived_at: null, created_at: "" },
+  { id: "cat-food", name: "Makanan", type: "expense", parent_id: null, seed_key: "expense_food", archived_at: null, created_at: "" },
+  { id: "cat-old", name: "Lama", type: "expense", parent_id: null, seed_key: null, archived_at: "2026-02-01T00:00:00Z", created_at: "" },
+  { id: "cat-salary", name: "Gaji", type: "income", parent_id: null, seed_key: "income_salary", archived_at: null, created_at: "" },
 ];
 
 function renderForm(onDone = vi.fn()) {

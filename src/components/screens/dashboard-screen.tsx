@@ -5,11 +5,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { useAccounts, useDashboard, useProfile } from "@/hooks/use-budget-data";
 import { errorMessage } from "@/lib/api/api-errors";
-import type { Account, CategoryTotal } from "@/lib/api/api-types";
+import type { Account, CategoryRollup } from "@/lib/api/api-types";
 import { currentMonthJakarta, formatMonth, isMonth } from "@/lib/date-utils";
 import { formatRupiah, sumRupiah } from "@/lib/money-utils";
 
-import { DailyExpenseChart } from "../daily-chart";
+import { DailyExpenseSection } from "../daily-expense-section";
 import { MonthSwitcher } from "../month-switcher";
 import { useTransactionDialog } from "../transaction-dialog";
 import { Button } from "../ui/button";
@@ -28,17 +28,19 @@ export function DashboardScreen() {
   const pathname = usePathname();
   const monthParam = params.get("bulan");
   const month = isMonth(monthParam) ? monthParam : currentMonthJakarta();
+  const dailyCategoryId = params.get("kategori");
   const profile = useProfile();
   const dashboard = useDashboard(month);
   const accounts = useAccounts();
   const { openTransaction } = useTransactionDialog();
 
-  const setMonth = (m: string) => {
+  function setParam(key: string, value: string | null) {
     const next = new URLSearchParams(params);
-    if (m === currentMonthJakarta()) next.delete("bulan");
-    else next.set("bulan", m);
+    if (value) next.set(key, value);
+    else next.delete(key);
     router.replace(`${pathname}${next.size ? `?${next}` : ""}`, { scroll: false });
-  };
+  }
+  const setMonth = (m: string) => setParam("bulan", m === currentMonthJakarta() ? null : m);
 
   const d = dashboard.data;
   const isEmpty = d && d.income_rupiah === "0" && d.expense_rupiah === "0";
@@ -84,12 +86,7 @@ export function DashboardScreen() {
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-        <section className="rounded-3xl border border-rule bg-paper-raised p-5" aria-labelledby="daily-title">
-          <h2 id="daily-title" className="mb-3 font-semibold">
-            Pengeluaran harian
-          </h2>
-          {d ? <DailyExpenseChart daily={d.daily} /> : <Skeleton className="h-52" />}
-        </section>
+        <DailyExpenseSection month={month} categoryId={dailyCategoryId} onCategoryChange={(id) => setParam("kategori", id)} />
 
         <section className="rounded-3xl border border-rule bg-paper-raised p-5" aria-labelledby="cat-title">
           <div className="mb-3 flex items-baseline justify-between">
@@ -129,7 +126,7 @@ function Stat({ label, value, tone, loading }: { label: string; value?: string; 
   );
 }
 
-function CategoryBreakdown({ items, total, month }: { items: CategoryTotal[]; total: string; month: string }) {
+function CategoryBreakdown({ items, total, month }: { items: CategoryRollup[]; total: string; month: string }) {
   if (items.length === 0) return <p className="py-8 text-center text-sm text-ink-soft">Belum ada pengeluaran.</p>;
   const totalN = BigInt(total) || 1n;
   return (
@@ -154,6 +151,25 @@ function CategoryBreakdown({ items, total, month }: { items: CategoryTotal[]; to
                 <span className="w-11 text-right text-xs text-ink-faint">{(permille / 10).toLocaleString("id-ID")}%</span>
               </div>
             </Link>
+            {c.children.length > 0 ? (
+              <ul className="mt-1.5 flex flex-col gap-1 pl-3" aria-label={`Sub-kategori ${c.name}`}>
+                {c.children.map((child) => (
+                  <li key={child.category_id}>
+                    <Link
+                      href={`/transaksi?bulan=${month}&kategori=${child.category_id}`}
+                      className="flex items-baseline justify-between gap-3 text-xs text-ink-soft hover:underline"
+                    >
+                      <span className="truncate">
+                        <span aria-hidden className="text-ink-faint">↳ </span>
+                        {child.name}
+                        {child.archived ? <span className="text-ink-faint"> (arsip)</span> : null}
+                      </span>
+                      <span className="figure shrink-0">{formatRupiah(child.total_rupiah)}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </li>
         );
       })}

@@ -21,6 +21,11 @@ Supabase (Google Auth, PostgreSQL, RPC), deployed to Vercel Hobby.
 - **Edit conflicts**: `update_transaction`/`delete_transaction` use `expected_version` (compare-and-update).
 - **CSV export**: all pages are read first; `data_version` is compared before/after; no file is produced
   if any page fails or the data changes. Spreadsheet formula injection protection.
+- **Sub-categories**: `categories.parent_id`, one level deep, same type as the parent (enforced in the
+  trigger). Filtering by a parent (history, export, daily totals) includes its children; the dashboard rolls
+  children up into their parent. The UI shows a flat list (`Makanan`, `Makanan › Jajan`).
+- **Daily expense**: `get_daily_totals` aggregates per day over the same filters as the history. It feeds the
+  dashboard's daily section (category filter, today/average/peak) and the per-day totals in the history list.
 - **Telegram foundation (P1)**: the save logic lives in `app_data.create_transaction_core(...)` and the
   `transactions.source` column already exists, so a future bot RPC will use the same rules.
 

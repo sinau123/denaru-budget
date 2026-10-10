@@ -59,8 +59,10 @@ test("wallets and settings render", async ({ page }) => {
   await expectNoHorizontalScroll(page);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/wallets-${test.info().project.name}.png`, fullPage: true });
   await page.goto("/pengaturan");
-  await expect(page.getByText("Makanan")).toBeVisible();
+  await expect(page.getByText("Makanan", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sub-kategori Jajan", { exact: true })).toBeVisible();
   await expectNoHorizontalScroll(page);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/settings-${test.info().project.name}.png`, fullPage: true });
 });
 
 test("new users are sent to onboarding", async ({ page }) => {
@@ -83,4 +85,38 @@ test("logout clears the session and cached data", async ({ page }) => {
   expect(leftovers).toEqual([]);
   await page.goBack();
   await expect(page.getByText("Rp2.900.000")).toHaveCount(0);
+});
+
+test("daily expenses and category filters include sub-categories", async ({ page }) => {
+  const backend = await installFakeBackend(page);
+  const day = backend.txns[0].occurred_on;
+  const now = new Date().toISOString();
+  backend.txns.push({ id: "t4", type: "expense", amount_rupiah: "5000", account_id: "acc-cash", to_account_id: null, category_id: "cat-snack", occurred_on: day, note: "Cilok", version: 1, created_at: now, updated_at: now, source: "web" });
+
+  await page.goto("/");
+  const daily = page.getByRole("region", { name: "Pengeluaran harian" });
+  await expect(daily.getByText("Tertinggi")).toBeVisible();
+  await expect(daily.getByText("Rp30.000").first()).toBeVisible();
+  // Makanan rolls up Jajan; the child is listed under it.
+  const perCategory = page.getByRole("region", { name: "Per kategori" });
+  await expect(perCategory.getByText("Rp30.000")).toBeVisible();
+  await expect(perCategory.getByRole("list", { name: "Sub-kategori Makanan" }).getByText("Jajan")).toBeVisible();
+
+  await daily.getByLabel("Kategori pengeluaran harian").selectOption({ label: "Makanan › Jajan" });
+  await expect(page).toHaveURL(/kategori=cat-snack/);
+  await expect(daily.getByText("Rp5.000").first()).toBeVisible();
+  await expectNoHorizontalScroll(page);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/daily-${test.info().project.name}.png`, fullPage: true });
+
+  await page.goto("/transaksi");
+  await page.getByLabel("Kategori").selectOption({ label: "Makanan · keluar" });
+  await expect(page.getByText("Cilok")).toBeVisible();
+  await expect(page.getByText("Nasi padang, es teh")).toBeVisible();
+  await expect(page.getByText("Tarik tunai")).toHaveCount(0);
+  // The day header shows the whole day's expense for the filter.
+  await expect(page.getByText("−Rp30.000")).toBeVisible();
+
+  await page.getByLabel("Kategori").selectOption({ label: "Makanan › Jajan · keluar" });
+  await expect(page.getByText("Cilok")).toBeVisible();
+  await expect(page.getByText("Nasi padang, es teh")).toHaveCount(0);
 });

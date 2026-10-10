@@ -3,10 +3,11 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
+import { useAccounts, useCategories, useDailyTotals, useTransactions } from "@/hooks/use-budget-data";
 import { errorMessage } from "@/lib/api/api-errors";
 import type { TransactionFilters, TransactionType } from "@/lib/api/api-types";
-import { currentMonthJakarta, formatMonth, isMonth, monthRange } from "@/lib/date-utils";
+import { flattenCategories } from "@/lib/category-utils";
+import { addDays, currentMonthJakarta, formatMonth, isMonth, monthRange } from "@/lib/date-utils";
 
 import { ExportButton } from "../export-button";
 import { useTransactionDialog } from "../transaction-dialog";
@@ -70,7 +71,19 @@ export function TransactionsScreen() {
   const rows = useMemo(() => query.data?.pages.flat() ?? [], [query.data]);
   const hasFilters = !!(type || accountId || categoryId || urlSearch || period !== currentMonthJakarta());
 
-  const categoryOptions = (categories.data ?? []).filter((c) => !type || c.type === type);
+  // Day headers show totals for the whole day from the server, not just the
+  // rows loaded so far. Only the span of loaded days is requested.
+  const newest = rows[0]?.occurred_on;
+  const oldest = rows[rows.length - 1]?.occurred_on;
+  const dailyFilters: TransactionFilters = useMemo(
+    () => ({ ...filters, from: oldest ?? null, to: newest ? addDays(newest, 1) : null }),
+    [filters, oldest, newest],
+  );
+  const daily = useDailyTotals(dailyFilters, !!newest);
+  const dayTotals = useMemo(() => new Map((daily.data ?? []).map((d) => [d.occurred_on, d])), [daily.data]);
+
+  // Flat, one level: picking a parent category also matches its children.
+  const categoryOptions = flattenCategories(categories.data ?? [], (c) => !type || c.type === type);
 
   return (
     <div className="flex flex-col gap-5">
@@ -141,9 +154,9 @@ export function TransactionsScreen() {
             className={inputClass}
           >
             <option value="">Semua kategori</option>
-            {categoryOptions.map((c) => (
+            {categoryOptions.map(({ category: c, label }) => (
               <option key={c.id} value={c.id}>
-                {c.name} · {c.type === "income" ? "masuk" : "keluar"}
+                {label} · {c.type === "income" ? "masuk" : "keluar"}
                 {c.archived_at ? " (arsip)" : ""}
               </option>
             ))}
@@ -188,7 +201,7 @@ export function TransactionsScreen() {
         </EmptyState>
       ) : (
         <>
-          <TransactionList rows={rows} onSelect={(transaction) => openTransaction({ transaction })} />
+          <TransactionList rows={rows} dayTotals={dayTotals} onSelect={(transaction) => openTransaction({ transaction })} />
           {query.isFetchNextPageError ? <Notice tone="error">{errorMessage(query.error)}</Notice> : null}
           {query.hasNextPage ? (
             <Button variant="secondary" onClick={() => query.fetchNextPage()} pending={query.isFetchingNextPage} className="self-center">

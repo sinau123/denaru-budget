@@ -33,6 +33,8 @@ export type Category = {
   id: string;
   name: string;
   type: CategoryType;
+  /** Set for sub-categories; the tree is at most two levels deep. */
+  parent_id: string | null;
   seed_key: string | null;
   archived_at: string | null;
   created_at: string;
@@ -68,14 +70,17 @@ export type CategoryTotal = {
   count: number;
 };
 
+/** A top-level category total; children are already included in total_rupiah. */
+export type CategoryRollup = CategoryTotal & { children: CategoryTotal[] };
+
 export type Dashboard = {
   from: string;
   to: string;
   income_rupiah: string;
   expense_rupiah: string;
   net_rupiah: string;
-  expense_by_category: CategoryTotal[];
-  income_by_category: CategoryTotal[];
+  expense_by_category: CategoryRollup[];
+  income_by_category: CategoryRollup[];
   daily: { date: string; expense_rupiah: string; income_rupiah: string }[];
 };
 
@@ -86,6 +91,15 @@ export type TransactionFilters = {
   accountId?: string | null;
   categoryId?: string | null;
   search?: string | null;
+};
+
+/** One day with at least one matching income/expense (transfers excluded). */
+export type DailyTotal = {
+  occurred_on: string;
+  expense_rupiah: string;
+  income_rupiah: string;
+  expense_count: number;
+  income_count: number;
 };
 
 export type TransactionCursor = {

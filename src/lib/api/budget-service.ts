@@ -4,6 +4,7 @@ import type {
   AccountType,
   Category,
   CategoryType,
+  DailyTotal,
   Dashboard,
   Profile,
   Transaction,
@@ -80,12 +81,12 @@ export function listCategories() {
   return callRpc<Category[]>("list_categories");
 }
 
-export function createCategory(id: string, name: string, type: CategoryType) {
-  return callRpc<Category>("create_category", { p_id: id, p_name: name, p_type: type });
+export function createCategory(id: string, name: string, type: CategoryType, parentId: string | null = null) {
+  return callRpc<Category>("create_category", { p_id: id, p_name: name, p_type: type, p_parent_id: parentId });
 }
 
-export function renameCategory(id: string, name: string) {
-  return callRpc<Category>("rename_category", { p_id: id, p_name: name });
+export function updateCategory(id: string, name: string, parentId: string | null) {
+  return callRpc<Category>("update_category", { p_id: id, p_name: name, p_parent_id: parentId });
 }
 
 export function setCategoryArchived(id: string, archived: boolean) {
@@ -148,6 +149,17 @@ export function listTransactions(filters: TransactionFilters, cursor: Transactio
 
 export function exportTransactionsPage(filters: TransactionFilters, cursor: TransactionCursor | null) {
   return callRpc<TransactionRow[]>("export_transactions", { ...filterArgs(filters, cursor), p_limit: EXPORT_PAGE_SIZE });
+}
+
+export function getDailyTotals(filters: TransactionFilters) {
+  return callRpc<DailyTotal[]>("get_daily_totals", {
+    p_from: filters.from ?? null,
+    p_to: filters.to ?? null,
+    p_type: filters.type ?? null,
+    p_account_id: filters.accountId ?? null,
+    p_category_id: filters.categoryId ?? null,
+    p_search: filters.search?.trim() || null,
+  });
 }
 
 export function cursorOf(row: TransactionRow): TransactionCursor {

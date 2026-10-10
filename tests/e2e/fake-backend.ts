@@ -21,11 +21,20 @@ export async function installFakeBackend(page: Page, opts: { onboarded?: boolean
     { id: "acc-cash", name: "Tunai", type: "cash", opening_balance_rupiah: "500000", opened_on: monthStart, archived_at: null, created_at: "2026-01-01T00:00:00Z" },
     { id: "acc-bank", name: "Bank BCA", type: "bank", opening_balance_rupiah: "1000000", opened_on: monthStart, archived_at: null, created_at: "2026-01-02T00:00:00Z" },
   ];
-  const categories = [
-    { id: "cat-food", name: "Makanan", type: "expense", seed_key: "expense_food", archived_at: null, created_at: "" },
-    { id: "cat-transport", name: "Transportasi", type: "expense", seed_key: "expense_transport", archived_at: null, created_at: "" },
-    { id: "cat-salary", name: "Gaji", type: "income", seed_key: "income_salary", archived_at: null, created_at: "" },
+  const categories: { id: string; name: string; type: string; parent_id: string | null; seed_key: string | null; archived_at: null; created_at: string }[] = [
+    { id: "cat-food", name: "Makanan", type: "expense", parent_id: null, seed_key: "expense_food", archived_at: null, created_at: "" },
+    { id: "cat-snack", name: "Jajan", type: "expense", parent_id: "cat-food", seed_key: null, archived_at: null, created_at: "" },
+    { id: "cat-transport", name: "Transportasi", type: "expense", parent_id: null, seed_key: "expense_transport", archived_at: null, created_at: "" },
+    { id: "cat-salary", name: "Gaji", type: "income", parent_id: null, seed_key: "income_salary", archived_at: null, created_at: "" },
   ];
+  // Mirrors app_data.category_scope: a category plus its direct children.
+  const inScope = (categoryId: unknown, t: Txn) =>
+    !categoryId || t.category_id === categoryId || categories.some((c) => c.id === t.category_id && c.parent_id === categoryId);
+  const categoryName = (id: string | null) => {
+    const c = categories.find((x) => x.id === id);
+    const parent = categories.find((x) => x.id === c?.parent_id);
+    return c ? (parent ? `${parent.name} › ${c.name}` : c.name) : null;
+  };
   const txns: Txn[] = [];
   let dataVersion = 1;
   const calls: string[] = [];
@@ -59,7 +68,7 @@ export async function installFakeBackend(page: Page, opts: { onboarded?: boolean
     ...t,
     account_name: accounts.find((a) => a.id === t.account_id)?.name,
     to_account_name: accounts.find((a) => a.id === t.to_account_id)?.name ?? null,
-    category_name: categories.find((c) => c.id === t.category_id)?.name ?? null,
+    category_name: categoryName(t.category_id),
   });
 
   const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
@@ -76,6 +85,16 @@ export async function installFakeBackend(page: Page, opts: { onboarded?: boolean
       return acc;
     },
     list_categories: () => categories,
+    create_category: (a) => {
+      const c = { id: a.p_id as string, name: a.p_name as string, type: a.p_type as string, parent_id: (a.p_parent_id as string) ?? null, seed_key: null, archived_at: null, created_at: new Date().toISOString() };
+      categories.push(c);
+      return c;
+    },
+    update_category: (a) => {
+      const c = categories.find((x) => x.id === a.p_id)!;
+      Object.assign(c, { name: a.p_name, parent_id: a.p_parent_id ?? null });
+      return c;
+    },
     create_transaction: (a) => {
       const existing = txns.find((t) => t.id === a.p_id);
       if (existing) return { ...existing, replayed: true };
@@ -84,10 +103,31 @@ export async function installFakeBackend(page: Page, opts: { onboarded?: boolean
     get_transaction: (a) => txns.find((t) => t.id === a.p_id) ?? null,
     list_transactions: (a) => txns
       .filter((t) => !a.p_from || t.occurred_on >= (a.p_from as string))
+      .filter((t) => !a.p_to || t.occurred_on < (a.p_to as string))
+      .filter((t) => !a.p_type || t.type === a.p_type)
       .filter((t) => !a.p_account_id || t.account_id === a.p_account_id || t.to_account_id === a.p_account_id)
+      .filter((t) => inScope(a.p_category_id, t))
       .filter((t) => !a.p_search || t.note.toLowerCase().includes(String(a.p_search).toLowerCase()))
       .slice().reverse().map(row),
     export_transactions: () => txns.slice().reverse().map(row),
+    get_daily_totals: (a) => {
+      const days = new Map<string, { expense: bigint; income: bigint; ec: number; ic: number }>();
+      for (const t of txns) {
+        if (t.type === "transfer") continue;
+        if (a.p_from && t.occurred_on < (a.p_from as string)) continue;
+        if (a.p_to && t.occurred_on >= (a.p_to as string)) continue;
+        if (a.p_type && t.type !== a.p_type) continue;
+        if (a.p_account_id && t.account_id !== a.p_account_id) continue;
+        if (!inScope(a.p_category_id, t)) continue;
+        if (a.p_search && !t.note.toLowerCase().includes(String(a.p_search).toLowerCase())) continue;
+        const d = days.get(t.occurred_on) ?? { expense: 0n, income: 0n, ec: 0, ic: 0 };
+        if (t.type === "expense") { d.expense += BigInt(t.amount_rupiah); d.ec++; } else { d.income += BigInt(t.amount_rupiah); d.ic++; }
+        days.set(t.occurred_on, d);
+      }
+      return [...days].sort(([x], [y]) => (x < y ? 1 : -1)).map(([date, d]) => ({
+        occurred_on: date, expense_rupiah: d.expense.toString(), income_rupiah: d.income.toString(), expense_count: d.ec, income_count: d.ic,
+      }));
+    },
     get_dashboard: (a) => {
       const inPeriod = txns.filter((t) => t.occurred_on >= (a.p_from as string) && t.occurred_on < (a.p_to as string));
       const sum = (type: string) => inPeriod.filter((t) => t.type === type).reduce((s, t) => s + BigInt(t.amount_rupiah), 0n);
@@ -98,9 +138,13 @@ export async function installFakeBackend(page: Page, opts: { onboarded?: boolean
         const e = inPeriod.filter((t) => t.type === "expense" && t.occurred_on === iso).reduce((s, t) => s + BigInt(t.amount_rupiah), 0n);
         days.push({ date: iso, expense_rupiah: e.toString(), income_rupiah: "0" });
       }
-      const byCat = categories.filter((c) => c.type === "expense").map((c) => ({
+      const total = (ts: Txn[]) => ts.reduce((s, t) => s + BigInt(t.amount_rupiah), 0n).toString();
+      const byCat = categories.filter((c) => c.type === "expense" && !c.parent_id).map((c) => ({
         category_id: c.id, name: c.name, archived: false, count: 1,
-        total_rupiah: inPeriod.filter((t) => t.category_id === c.id).reduce((s, t) => s + BigInt(t.amount_rupiah), 0n).toString(),
+        total_rupiah: total(inPeriod.filter((t) => inScope(c.id, t))),
+        children: categories.filter((k) => k.parent_id === c.id)
+          .map((k) => ({ category_id: k.id, name: k.name, archived: false, count: 1, total_rupiah: total(inPeriod.filter((t) => t.category_id === k.id)) }))
+          .filter((k) => k.total_rupiah !== "0"),
       })).filter((c) => c.total_rupiah !== "0");
       return { from: a.p_from, to: a.p_to, income_rupiah: income.toString(), expense_rupiah: expense.toString(), net_rupiah: (income - expense).toString(), expense_by_category: byCat, income_by_category: [], daily: days };
     },
