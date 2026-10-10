@@ -27,6 +27,8 @@ export const id = {
     wallet: "Dompet",
     date: "Tanggal",
     type: "Jenis",
+    today: "Hari ini",
+    yesterday: "Kemarin",
   },
   transactionType: {
     expense: "Pengeluaran",
@@ -73,7 +75,6 @@ export const id = {
   daily: {
     title: "Pengeluaran harian",
     categoryLabel: "Kategori pengeluaran harian",
-    today: "Hari ini",
     total: "Total",
     average: "Rata-rata",
     averageHint: (days: number) => `per hari, ${days} hari`,

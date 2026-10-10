@@ -7,7 +7,7 @@ import { useAccounts, useCategories, useDailyTotals, useTransactions } from "@/h
 import { errorMessage } from "@/lib/api/api-errors";
 import type { TransactionFilters, TransactionType } from "@/lib/api/api-types";
 import { flattenCategories } from "@/lib/category-utils";
-import { addDays, currentMonthJakarta, formatMonth, isMonth, monthRange } from "@/lib/date-utils";
+import { addDays, currentMonthJakarta, formatMonth, isMonth, monthRange, shiftMonth } from "@/lib/date-utils";
 
 import { ExportButton } from "../export-button";
 import { useI18n } from "../i18n-provider";
@@ -217,13 +217,7 @@ export function TransactionsScreen() {
 
 function recentMonths(selected: string): string[] {
   const current = currentMonthJakarta();
-  const months: string[] = [];
-  let m = current;
-  for (let i = 0; i < 24; i++) {
-    months.push(m);
-    const [y, mo] = m.split("-").map(Number);
-    m = mo === 1 ? `${y - 1}-12` : `${y}-${String(mo - 1).padStart(2, "0")}`;
-  }
+  const months = Array.from({ length: 24 }, (_, i) => shiftMonth(current, -i));
   if (isMonth(selected) && !months.includes(selected)) months.push(selected);
   return months;
 }

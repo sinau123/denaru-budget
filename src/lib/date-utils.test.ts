@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { addDays, isIsoDate, monthRange, relativeDayLabel, shiftMonth, todayJakarta } from "./date-utils";
+import {
+  addDays,
+  formatDateLong,
+  formatDateShort,
+  formatMonth,
+  isIsoDate,
+  isMonth,
+  monthRange,
+  relativeDayLabel,
+  shiftMonth,
+  todayJakarta,
+} from "./date-utils";
 
 describe("date-utils", () => {
   it("uses the Jakarta calendar date, not UTC", () => {
@@ -19,8 +30,19 @@ describe("date-utils", () => {
     expect(addDays("2026-03-01", -1)).toBe("2026-02-28");
     expect(isIsoDate("2026-02-30")).toBe(false);
     expect(isIsoDate("2026-02-28")).toBe(true);
+    expect(isIsoDate("2026-2-28")).toBe(false);
+    expect(isMonth("2026-12")).toBe(true);
+    expect(isMonth("2026-13")).toBe(false);
     expect(relativeDayLabel("2026-10-09", "2026-10-10")).toBe("Kemarin");
     expect(relativeDayLabel("2026-10-10", "2026-10-10", "en")).toBe("Today");
     expect(relativeDayLabel("2026-10-09", "2026-10-10", "en")).toBe("Yesterday");
+  });
+
+  it("formats calendar dates per language without shifting the day", () => {
+    expect(formatDateLong("2026-10-10")).toBe("Sab, 10 Okt 2026");
+    expect(formatDateLong("2026-10-10", "en")).toBe("Sat, 10 Oct 2026");
+    expect(formatDateShort("2026-01-01", "en")).toBe("1 Jan");
+    expect(formatMonth("2026-10")).toBe("Oktober 2026");
+    expect(formatMonth("2026-10", "en")).toBe("October 2026");
   });
 });

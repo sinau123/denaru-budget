@@ -24,6 +24,8 @@ export const en: Dictionary = {
     wallet: "Wallet",
     date: "Date",
     type: "Type",
+    today: "Today",
+    yesterday: "Yesterday",
   },
   transactionType: {
     expense: "Expense",
@@ -69,7 +71,6 @@ export const en: Dictionary = {
   daily: {
     title: "Daily expenses",
     categoryLabel: "Daily expense category",
-    today: "Today",
     total: "Total",
     average: "Average",
     averageHint: (days) => `per day, ${plural(days, "day", "days")}`,

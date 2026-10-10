@@ -65,7 +65,7 @@ export function DailyExpenseSection({
 
       <dl className="mb-4 grid grid-cols-3 gap-2">
         {isCurrentMonth ? (
-          <DayStat label={t.daily.today} value={summary.today} loading={loading} />
+          <DayStat label={t.common.today} value={summary.today} loading={loading} />
         ) : (
           <DayStat label={t.daily.total} value={summary.total} loading={loading} />
         )}

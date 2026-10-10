@@ -2,12 +2,10 @@
 
 import { Fragment, createContext, use, useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 
-import { en } from "@/lib/i18n/dictionary-en";
-import { type Dictionary, id } from "@/lib/i18n/dictionary-id";
+import { DICTIONARIES } from "@/lib/i18n/dictionaries";
+import type { Dictionary } from "@/lib/i18n/dictionary-id";
 import { DEFAULT_LOCALE, type Locale, isLocale } from "@/lib/i18n/locales";
 import { LOCALE_KEY, readLocal, writeLocal } from "@/lib/local-state";
-
-const DICTIONARIES: Record<Locale, Dictionary> = { id, en };
 
 type I18nContextValue = {
   locale: Locale;
