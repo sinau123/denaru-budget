@@ -84,6 +84,11 @@ export function setTelegramDefaultAccount(accountId: string | null) {
   return callRpc<TelegramStatus>("telegram_set_default_account", { p_account_id: accountId });
 }
 
+/** Budget the chat records into; null means the user's own. Clears the default wallet when it changes. */
+export function setTelegramBudget(ownerId: string | null) {
+  return callRpc<TelegramStatus>("telegram_set_budget", { p_owner_id: ownerId });
+}
+
 export function unlinkTelegram() {
   return callRpc<TelegramStatus>("telegram_unlink");
 }

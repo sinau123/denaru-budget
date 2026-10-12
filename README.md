@@ -26,8 +26,8 @@ Supabase (Google Auth, PostgreSQL, RPC), deployed to Vercel Hobby.
   children up into their parent. The UI shows a flat list (`Makanan`, `Makanan › Jajan`).
 - **Daily expense**: `get_daily_totals` aggregates per day over the same filters as the history. It feeds the
   dashboard's daily section (category filter, today/average/peak) and the per-day totals in the history list.
-- **Telegram (P1, PRD F11–F13)**: a private chat with the bot records income/expense into the budget the user
-  is viewing on the web. See [Telegram bot](#telegram-bot).
+- **Telegram (P1, PRD F11–F13)**: a private chat with the bot records income/expense into the budget chosen for
+  the chat (own or an accepted share; `/budget` or Settings → Telegram), independent of the budget shown on the web. See [Telegram bot](#telegram-bot).
 
 ```
 supabase/migrations/   schema, RLS, triggers, RPC
@@ -91,11 +91,13 @@ How it works:
   `X-Telegram-Bot-Api-Secret-Token`, accepts private chats only, and calls the `api.tg_*` functions with the
   Supabase **secret key**. Those functions are `SECURITY DEFINER`, executable only by `service_role`; they find the
   active link for the verified Telegram user + chat and then act as that app user for the rest of the database
-  transaction, so `budget_owner()`, the audit trigger and `create_transaction_core(..., 'telegram')` behave exactly
-  as on the web. The user is never taken from chat text.
+  transaction, so the audit trigger and `create_transaction_core(..., 'telegram')` behave exactly as on the web.
+  The budget comes from `telegram_links.budget_owner_id` via `tg_budget_owner()` (falls back to the user's own
+  budget once the share is gone), not from the web's `profiles.active_budget_id`. The user is never taken from chat text.
 - **Pairing**: Settings → *Connect Telegram* creates a one-time code (5 minutes, stored as SHA-256) → the deep
   link `t.me/<bot>?start=<code>` → the bot records which Telegram identity pressed Start → the user approves that
-  identity on the web → then picks the default wallet.
+  identity on the web → then picks the budget for chat (if they have shared budgets) and its default wallet.
+  Switching budgets clears the default wallet and cancels open drafts.
 - **Recording**: a message such as `beli nasi 20rb pakai tunai` is parsed by rules (`parse-message.ts`; no AI)
   into a draft (10 minutes) with **Simpan / Ubah / Batal** buttons. Missing or ambiguous values (no amount,
   "3 burger 3000", unknown wallet/category) are asked for with buttons. Data is only written on *Simpan*.
@@ -103,7 +105,7 @@ How it works:
   stores its result, so a re-delivered update replays it. A draft carries its transaction ID from creation, is
   locked on commit, and stays as proof after commit, so a second click, a retry, or a click after the transaction
   was deleted on the web never inserts again. Old draft versions cannot be saved.
-- **Commands**: `/help`, `/last`, `/cancel`, `/disconnect` (replies are in Indonesian). Corrections to saved
+- **Commands**: `/help`, `/budget`, `/last`, `/cancel`, `/disconnect` (replies are in Indonesian). Corrections to saved
   transactions are made on the web.
 
 Setup:
@@ -119,7 +121,8 @@ Setup:
 
 `tests/db/telegram.test.ts` covers pairing (expired/reused codes, approval by the owner only), access (no
 `tg_*` for signed-in or anonymous users), drafts and commits (double click, re-delivered update, old version,
-deleted transaction, expired draft, another chat's draft), shared budgets, and disconnect.
+deleted transaction, expired draft, another chat's draft), shared budgets (choosing the chat's budget, independence
+from the web's budget, default wallet per budget, revoked access), and disconnect.
 
 ## Operations runbook
 

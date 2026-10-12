@@ -27,12 +27,17 @@ export type BotDraft = {
   committed_at: string | null;
 };
 
+export type BotBudget = { owner_id: string; owner_name: string; is_own: boolean };
+
 export type BotContext =
   | { linked: false }
   | {
       linked: true;
       today: string;
-      budget: { owner_id: string; owner_name: string; is_own: boolean };
+      /** The budget the chat records into, chosen with /budget (not the web's active budget). */
+      budget: BotBudget;
+      /** Own budget first, then accepted shares. */
+      budgets: BotBudget[];
       default_account_id: string | null;
       accounts: { id: string; name: string; type: "cash" | "bank" | "ewallet"; opened_on: string }[];
       categories: {
@@ -84,6 +89,12 @@ export interface BotDb {
   cancelDraft(updateId: string, who: TelegramIdentity, draftId: string | null): Promise<{ cancelled: boolean; draft?: BotDraft }>;
   recentTransactions(who: TelegramIdentity, limit: number): Promise<RecentTransaction[]>;
   unlink(updateId: string, who: TelegramIdentity): Promise<{ unlinked: boolean }>;
+  setBudget(updateId: string, who: TelegramIdentity, ownerId: string): Promise<{ budget: BotBudget }>;
+  setDefaultAccount(
+    updateId: string,
+    who: TelegramIdentity,
+    accountId: string,
+  ): Promise<{ budget: BotBudget; default_account_id: string; account_name: string }>;
 }
 
 /** A definite rejection from the database (RAISE 'CODE'). Shown to the user. */
@@ -191,6 +202,22 @@ export function createBotDb(config: { supabaseUrl: string; supabaseSecretKey: st
         p_update_id: updateId,
         p_telegram_user_id: who.telegramUserId,
         p_chat_id: who.chatId,
+      }),
+    setBudget: (updateId, who, ownerId) =>
+      rpc("tg_set_budget", {
+        p_bot_id: bot,
+        p_update_id: updateId,
+        p_telegram_user_id: who.telegramUserId,
+        p_chat_id: who.chatId,
+        p_owner_id: ownerId,
+      }),
+    setDefaultAccount: (updateId, who, accountId) =>
+      rpc("tg_set_default_account", {
+        p_bot_id: bot,
+        p_update_id: updateId,
+        p_telegram_user_id: who.telegramUserId,
+        p_chat_id: who.chatId,
+        p_account_id: accountId,
       }),
   };
 }

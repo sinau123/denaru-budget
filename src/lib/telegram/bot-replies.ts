@@ -4,7 +4,7 @@
 import { addDays, formatDateLong, formatDateShort } from "../date-utils";
 import { id as dictionary } from "../i18n/dictionary-id";
 import { formatRupiah } from "../money-utils";
-import type { BotContext, BotDraft, RecentTransaction } from "./bot-db";
+import type { BotBudget, BotContext, BotDraft, RecentTransaction } from "./bot-db";
 import type { InlineKeyboard } from "./telegram-api";
 
 type LinkedContext = Extract<BotContext, { linked: true }>;
@@ -14,8 +14,9 @@ export function escapeHtml(value: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// callback_data (max 64 bytes): "<action>:<draft>:<version>[:<arg>]", with
-// UUIDs shortened to 22-character base64url.
+// callback_data (max 64 bytes): "<action>:<draft>:<version>[:<arg>]" for
+// draft buttons, "<action>:<id>" for chat settings, with UUIDs shortened to
+// 22-character base64url.
 // ---------------------------------------------------------------------------
 
 export function shortId(uuid: string): string {
@@ -37,7 +38,9 @@ export type CallbackAction =
   | ({ kind: "pickWallet"; accountId: string } & DraftRef)
   | ({ kind: "pickDate"; date: string } & DraftRef)
   | ({ kind: "pickAmount"; index: number } & DraftRef)
-  | { kind: "unlink"; confirm: boolean };
+  | { kind: "unlink"; confirm: boolean }
+  | { kind: "pickBudget"; ownerId: string }
+  | { kind: "pickDefaultWallet"; accountId: string };
 
 const SIMPLE_CODES = {
   save: "s",
@@ -56,6 +59,8 @@ const SIMPLE_KINDS = Object.fromEntries(Object.entries(SIMPLE_CODES).map(([k, v]
 
 export function encodeCallback(action: CallbackAction): string {
   if (action.kind === "unlink") return `u:${action.confirm ? "y" : "n"}`;
+  if (action.kind === "pickBudget") return `g:${shortId(action.ownerId)}`;
+  if (action.kind === "pickDefaultWallet") return `dw:${shortId(action.accountId)}`;
   const ref = `${shortId(action.draftId)}:${action.version}`;
   switch (action.kind) {
     case "pickCategory":
@@ -74,7 +79,19 @@ export function encodeCallback(action: CallbackAction): string {
 export function decodeCallback(data: string | undefined): CallbackAction | null {
   if (!data) return null;
   const parts = data.split(":");
-  if (parts[0] === "u" && parts.length === 2) return { kind: "unlink", confirm: parts[1] === "y" };
+  if (parts.length === 2) {
+    const id = longId(parts[1]);
+    switch (parts[0]) {
+      case "u":
+        return { kind: "unlink", confirm: parts[1] === "y" };
+      case "g":
+        return id ? { kind: "pickBudget", ownerId: id } : null;
+      case "dw":
+        return id ? { kind: "pickDefaultWallet", accountId: id } : null;
+      default:
+        return null;
+    }
+  }
 
   const [code, draft, versionText, arg] = parts;
   const draftId = draft ? longId(draft) : null;
@@ -118,7 +135,16 @@ function dayLabel(iso: string, today: string): string {
 
 const missing = "<i>belum dipilih</i>";
 
-export function draftText(draft: BotDraft, today: string, budget?: LinkedContext["budget"]): string {
+/** "Anggaran saya" or "Anggaran Budi" (escaped). */
+export function budgetName(budget: BotBudget): string {
+  return budget.is_own ? "Anggaran saya" : `Anggaran ${escapeHtml(budget.owner_name || "bersama")}`;
+}
+
+/**
+ * The draft summary. The budget is shown whenever the user can record into
+ * more than one, so a member always sees where the transaction goes.
+ */
+export function draftText(draft: BotDraft, today: string, ctx?: Pick<LinkedContext, "budget" | "budgets">): string {
   const amount = draft.amount_rupiah
     ? `<b>${formatRupiah(draft.amount_rupiah)}</b>`
     : draft.amount_options
@@ -132,7 +158,7 @@ export function draftText(draft: BotDraft, today: string, budget?: LinkedContext
     `Tanggal: ${dayLabel(draft.occurred_on, today)}`,
   ];
   if (draft.note) lines.push(`Catatan: ${escapeHtml(draft.note)}`);
-  if (budget && !budget.is_own) lines.push(`Anggaran: ${escapeHtml(budget.owner_name || "anggaran bersama")}`);
+  if (ctx && (ctx.budgets.length > 1 || !ctx.budget.is_own)) lines.push(`Anggaran: ${ctx.budget.is_own ? "milik saya" : escapeHtml(ctx.budget.owner_name || "bersama")}`);
   lines.push("");
   lines.push(draftPrompt(draft));
   return lines.join("\n");
@@ -169,6 +195,7 @@ export const texts = {
     "",
     "Nominal: angka penuh, <code>rb</code>, <code>k</code>, atau <code>jt</code> (12,5rb = Rp12.500). Tanpa nama dompet, bot memakai dompet default.",
     "",
+    "/budget — pilih anggaran tujuan dan dompet default",
     "/last — 5 transaksi terakhir",
     "/cancel — batalkan draft aktif",
     "/disconnect — putuskan Telegram dari akun",
@@ -188,11 +215,11 @@ export const texts = {
   unrecognized: "Pesan belum dapat dibaca sebagai transaksi. Sertakan nominal, misalnya <code>makan 25rb</code>. Ketik /help untuk contoh.",
   amountNotUnderstood: "Nominal belum terbaca. Ketik angkanya saja, misalnya <code>25rb</code> atau <code>25000</code>.",
   walletNotFound: "Dompet yang disebut tidak ditemukan. Pilih dompet di bawah.",
-  noDefaultWallet: "Tip: atur dompet default di Pengaturan web agar tidak perlu memilih setiap kali.",
+  noDefaultWallet: "Tip: atur dompet default lewat /budget agar tidak perlu memilih setiap kali.",
   noActiveDraft: "Tidak ada draft aktif.",
   draftCancelled: "❌ Draft dibatalkan. Tidak ada yang disimpan.",
   savedDeleted: "Draft ini sudah pernah disimpan, tetapi transaksinya sudah dihapus di aplikasi. Kirim ulang pesannya jika perlu.",
-  noAccounts: "Anggaran aktif belum punya dompet aktif. Tambahkan dompet di aplikasi web terlebih dahulu.",
+  noAccounts: "Anggaran ini belum punya dompet aktif. Tambahkan dompet di aplikasi web, atau pilih anggaran lain dengan /budget.",
   noCategories: "Belum ada kategori yang cocok. Tambahkan kategori di aplikasi web terlebih dahulu.",
   chooseField: "Apa yang ingin diubah?",
   chooseCategory: "Pilih kategori:",
@@ -203,7 +230,8 @@ export const texts = {
     "Putuskan Telegram dari akun Denaru? Draft yang belum disimpan ikut dibatalkan. Transaksi yang sudah tersimpan tidak terpengaruh.",
   unlinked: "Telegram sudah diputus dari akun. Hubungkan lagi kapan saja dari Pengaturan web.",
   unlinkKept: "Koneksi tetap aktif.",
-  recentEmpty: "Belum ada transaksi di anggaran aktif.",
+  recentEmpty: "Belum ada transaksi di anggaran ini.",
+  onlyOwnBudget: "Anggaran bersama muncul di sini setelah Anda menerima undangan di Pengaturan web.",
   temporaryFailure: "Layanan sedang terganggu. Coba lagi sebentar lagi, lalu periksa /last sebelum mengirim ulang.",
 };
 
@@ -211,6 +239,34 @@ export const texts = {
 export function rejectionText(code: string): string {
   const codes = dictionary.errors.codes as Record<string, string>;
   return codes[code] ?? codes.UNKNOWN;
+}
+
+/** Reply to /budget: where chat transactions go now, and the other choices. */
+export function budgetText(ctx: LinkedContext): string {
+  const lines = [`Transaksi dari chat masuk ke <b>${budgetName(ctx.budget)}</b>.`, defaultWalletLine(ctx), ""];
+  if (ctx.budgets.length > 1) lines.push("Pilih anggaran tujuan:");
+  else if (ctx.accounts.length === 0) lines.push(texts.noAccounts);
+  else if (!ctx.default_account_id) lines.push("Pilih dompet default:");
+  else lines.push(texts.onlyOwnBudget);
+  return lines.join("\n");
+}
+
+function defaultWalletLine(ctx: LinkedContext): string {
+  const wallet = ctx.accounts.find((a) => a.id === ctx.default_account_id);
+  return wallet ? `Dompet default: <b>${escapeHtml(wallet.name)}</b>` : `Dompet default: ${missing}`;
+}
+
+/** After picking a budget: confirms it and asks for a default wallet if it has none. */
+export function budgetChosenText(ctx: LinkedContext): string {
+  const lines = [`✅ Transaksi dari chat sekarang masuk ke <b>${budgetName(ctx.budget)}</b>.`];
+  if (ctx.default_account_id) lines.push(defaultWalletLine(ctx));
+  else if (ctx.accounts.length === 0) lines.push("", texts.noAccounts);
+  else lines.push("", "Pilih dompet default untuk anggaran ini:");
+  return lines.join("\n");
+}
+
+export function defaultWalletSavedText(budget: BotBudget, accountName: string): string {
+  return `✅ Dompet default untuk <b>${budgetName(budget)}</b>: <b>${escapeHtml(accountName)}</b>.`;
 }
 
 export function recentText(rows: RecentTransaction[], today: string): string {
@@ -294,6 +350,25 @@ export function dateButtons(draft: BotDraft, today: string): InlineKeyboard {
     ],
     [button(formatDateShort(addDays(today, -2), "id"), { kind: "pickDate", date: addDays(today, -2), ...ref(draft) })],
   ];
+}
+
+export function budgetKeyboard(ctx: LinkedContext): InlineKeyboard {
+  return ctx.budgets.map((b) => [
+    button(`${b.owner_id === ctx.budget.owner_id ? "✓ " : ""}${plainBudgetName(b)}`, { kind: "pickBudget", ownerId: b.owner_id }),
+  ]);
+}
+
+/** Button labels are plain text, so the name is not escaped. */
+function plainBudgetName(budget: BotBudget): string {
+  return budget.is_own ? "Anggaran saya" : `Anggaran ${budget.owner_name || "bersama"}`;
+}
+
+/** Default wallet choices, shown after switching to a budget without one. */
+export function defaultWalletKeyboard(ctx: LinkedContext): InlineKeyboard {
+  const choices = ctx.accounts
+    .slice(0, MAX_CHOICES)
+    .map((a) => button(a.name, { kind: "pickDefaultWallet", accountId: a.id }));
+  return chunk(choices, 2);
 }
 
 export const backRow = (draft: BotDraft) => [button("« Kembali", { kind: "back", ...ref(draft) })];

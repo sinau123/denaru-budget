@@ -1,6 +1,6 @@
 # PRD dan Tech Stack Aplikasi Pencatat Pengeluaran
 
-Versi 1.2 | 12 Oktober 2026 | MVP pribadi, berbagi anggaran, dan fase kedua Telegram
+Versi 1.3 | 13 Oktober 2026 | MVP pribadi, berbagi anggaran, dan fase kedua Telegram
 
 ## 01 Ringkasan produk
 
@@ -346,19 +346,21 @@ Nominal mendukung angka rupiah penuh, rb, k, dan jt; format seperti 12,5rb dipro
 
 ### F11 Hubungkan akun P1
 
-Dari Pengaturan aplikasi, pengguna memilih Hubungkan Telegram lalu membuka tautan bot dan menekan Start. Web menampilkan identitas Telegram yang meminta koneksi; pengguna menyetujui dari sesi web yang sudah login. Setelah tersambung, pengguna memilih dompet default untuk input chat. Deep link Telegram membawa kode pairing satu kali. [13]
+Dari Pengaturan aplikasi, pengguna memilih Hubungkan Telegram lalu membuka tautan bot dan menekan Start. Web menampilkan identitas Telegram yang meminta koneksi; pengguna menyetujui dari sesi web yang sudah login. Setelah tersambung, pengguna memilih anggaran tujuan dan dompet default untuk input chat. Deep link Telegram membawa kode pairing satu kali. [13]
 
-**Kriteria penerimaan:** satu akun aplikasi terhubung ke satu identitas Telegram aktif; kode berlaku lima menit dan tidak dapat digunakan ulang. Koneksi tidak ditentukan dari username yang dapat berubah. Pengguna dapat memutus koneksi dari web atau bot dengan konfirmasi; draft yang belum disimpan ikut dibatalkan.
+Anggaran tujuan chat dipilih terpisah dari anggaran yang sedang ditampilkan di web, sehingga anggota dapat mencatat lewat chat ke anggaran bersama sambil melihat anggaran sendiri di web, atau sebaliknya. Pilihannya adalah anggaran sendiri atau anggaran bersama yang undangannya sudah diterima (F14); awalnya anggaran sendiri. Pilihan diubah dari Pengaturan → Telegram atau dari chat dengan /budget. Dompet default milik satu anggaran, sehingga dikosongkan ketika anggaran tujuan berganti, lalu bot menawarkan pilihan dompet default yang baru.
+
+**Kriteria penerimaan:** satu akun aplikasi terhubung ke satu identitas Telegram aktif; kode berlaku lima menit dan tidak dapat digunakan ulang. Anggaran yang tidak dapat diakses tidak dapat dipilih. Mengganti anggaran tujuan membatalkan draft yang belum disimpan. Setelah akses anggaran bersama dicabut atau anggota keluar, chat kembali ke anggaran sendiri dan tidak berpindah otomatis bila diundang lagi. Koneksi tidak ditentukan dari username yang dapat berubah. Pengguna dapat memutus koneksi dari web atau bot dengan konfirmasi; draft yang belum disimpan ikut dibatalkan.
 
 ### F12 Catat lewat chat P1
 
-Bot mengubah pesan menjadi draft dan membalas ringkasan jenis, nominal, kategori, dompet, tanggal, serta catatan. Tersedia tombol Simpan, Ubah, dan Batal. Nilai default atau hasil pencocokan kategori selalu terlihat sebelum pengguna menekan Simpan. Draft kedaluwarsa setelah sepuluh menit.
+Bot mengubah pesan menjadi draft dan membalas ringkasan jenis, nominal, kategori, dompet, tanggal, serta catatan; anggaran tujuan ikut ditampilkan bila pengguna memiliki lebih dari satu anggaran. Tersedia tombol Simpan, Ubah, dan Batal. Nilai default atau hasil pencocokan kategori selalu terlihat sebelum pengguna menekan Simpan. Draft kedaluwarsa setelah sepuluh menit.
 
 **Kriteria penerimaan:** data hanya ditulis setelah pengguna menekan Simpan dan database berhasil melakukan commit. Klik tombol berulang menghasilkan transaksi yang sama. Jika nominal, kategori, atau dompet belum jelas, bot meminta pilihan. Pesan beli 3 burger 3000 harus diklarifikasi sebagai harga total atau harga per burger. Setelah tersimpan, bot memberikan nomor transaksi dan tautan ke web; dashboard mengikuti saat refetch berikutnya.
 
 ### F13 Bantuan dan koreksi P1
 
-Perintah /help menampilkan contoh; /cancel membatalkan draft aktif; /last menampilkan transaksi terbaru milik pengguna; /disconnect memutus koneksi setelah konfirmasi. Nama perintah memakai bahasa Inggris, sedangkan balasan bot berbahasa Indonesia. Koreksi transaksi yang sudah disimpan dilakukan dari web pada rilis Telegram pertama. Mengedit atau menghapus pesan Telegram tidak otomatis mengubah catatan keuangan. Foto, voice note, pesan grup, transfer lewat chat, serta beberapa transaksi dalam satu pesan ditunda.
+Perintah /help menampilkan contoh; /budget menampilkan anggaran tujuan dan dompet default serta tombol untuk menggantinya; /cancel membatalkan draft aktif; /last menampilkan transaksi terbaru di anggaran tujuan chat; /disconnect memutus koneksi setelah konfirmasi. Nama perintah memakai bahasa Inggris, sedangkan balasan bot berbahasa Indonesia. Koreksi transaksi yang sudah disimpan dilakukan dari web pada rilis Telegram pertama. Mengedit atau menghapus pesan Telegram tidak otomatis mengubah catatan keuangan. Foto, voice note, pesan grup, transfer lewat chat, serta beberapa transaksi dalam satu pesan ditunda.
 
 <!-- pagebreak -->
 
@@ -378,7 +380,7 @@ Pisahkan validasi dan penyimpanan transaksi dari komponen UI. RPC web dan RPC bo
 
 | Entitas | Data dan tanggung jawab |
 | --- | --- |
-| telegram_links | app user, bot_id, telegram_user_id, private_chat_id, dompet default, status dan revoked_at; pasangan aktif harus unik |
+| telegram_links | app user, bot_id, telegram_user_id, private_chat_id, anggaran tujuan (budget_owner_id, kosong berarti anggaran sendiri), dompet default di anggaran tersebut, status dan revoked_at; pasangan aktif harus unik |
 | telegram_link_tokens | Hash kode acak, app user, kandidat identitas Telegram, expires_at dan used_at; aktivasi memerlukan konfirmasi web |
 | telegram_drafts | Pemilik dan link, pesan asal, payload tervalidasi, version, status, expires_at serta transaction_id hasil commit |
 | telegram_events | bot_id dan update_id unik, status pemrosesan, hasil serta status balasan; menyimpan metadata minimum untuk retry |
@@ -413,6 +415,7 @@ Jeda proyek Supabase atau gangguan webhook tetap dapat menghambat input. Telegra
 
 - Uji contoh teks termasuk rb, k, jt, format desimal, kemarin di sekitar tengah malam, serta pesan dengan dua nominal. Input ambigu tidak boleh langsung disimpan.
 - Uji dua pengguna, kode pairing kedaluwarsa atau digunakan ulang, konfirmasi web, serta aksi setelah koneksi dicabut. Draft pengguna lain tidak dapat dikonfirmasi.
+- Uji pemilihan anggaran tujuan: anggaran yang tidak dapat diakses ditolak, pilihan chat tidak berubah ketika anggaran web berganti, draft lama ditolak setelah anggaran tujuan berganti, dan chat kembali ke anggaran sendiri setelah akses dicabut.
 - Kirim ulang update, klik Simpan bersamaan, dan putus koneksi sesudah commit. Satu draft menghasilkan maksimal satu transaksi; versi draft lama tidak dapat disimpan.
 - Uji nominal dan tanggal melanggar aturan MVP, dompet arsip, token webhook salah, pesan grup, serta callback yang dipalsukan.
 - Pastikan transaksi bersumber Telegram muncul pada riwayat, saldo, laporan, dan ekspor web dengan perhitungan yang sama seperti input web.

@@ -202,6 +202,13 @@ test("connects Telegram after approving on the web", async ({ page }) => {
   await page.getByTestId("telegram-default-wallet").selectOption({ label: "Tunai" });
   await expect(page.getByText("Dompet default disimpan.")).toBeVisible();
   expect(backend.telegram.link?.default_account_id).toBe("acc-cash");
+
+  // The chat can record into a shared budget; its wallets replace the old default.
+  await page.getByTestId("telegram-budget").selectOption({ label: "Anggaran Budi Santoso" });
+  await expect(page.getByText("Anggaran untuk chat disimpan.")).toBeVisible();
+  await expect(page.getByTestId("telegram-default-wallet")).toHaveValue("");
+  await page.getByTestId("telegram-default-wallet").selectOption({ label: "Kas Budi" });
+  expect(backend.telegram.link).toMatchObject({ budget: { owner_id: "00000000-0000-4000-8000-0000000000a1" }, default_account_id: "acc-budi" });
   await expectNoHorizontalScroll(page);
 
   await connected.getByRole("button", { name: "Putuskan" }).click();

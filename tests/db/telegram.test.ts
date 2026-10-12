@@ -47,6 +47,7 @@ type Commit = { draft: Draft; transaction: { id: string; source: string; created
 type Context = {
   linked: boolean;
   budget?: { owner_id: string; is_own: boolean };
+  budgets?: { owner_id: string; is_own: boolean }[];
   default_account_id?: string | null;
   accounts?: { id: string; name: string }[];
   categories?: { id: string; seed_key: string | null; type: string }[];
@@ -187,7 +188,7 @@ describe("pairing", () => {
     expect((await status(OTHER)).pending).toBeNull();
   });
 
-  it("validates the default wallet against the active budget", async () => {
+  it("validates the default wallet against the chat's budget", async () => {
     expect(await errorOf(db.rpc(OWNER, "api.telegram_set_default_account($1::uuid)", [MEMBER_CASH]))).toBe("ACCOUNT_NOT_FOUND");
     const result = await db.rpc<Status>(OWNER, "api.telegram_set_default_account($1::uuid)", [OWNER_CASH]);
     expect(result.link?.default_account_id).toBe(OWNER_CASH);
@@ -315,16 +316,31 @@ describe("drafts and commits", () => {
   });
 });
 
+const setBudget = (tg: { user: string; chat: string }, ownerId: string | null, update = nextUpdate()) =>
+  db.service<{ budget: { owner_id: string; is_own: boolean } }>("api.tg_set_budget($1, $2, $3, $4, $5::uuid)", [
+    BOT,
+    update,
+    tg.user,
+    tg.chat,
+    ownerId,
+  ]);
+
 describe("shared budgets", () => {
-  it("records into the member's active budget, attributed to the member", async () => {
+  it("records into the budget chosen in the chat, attributed to the member", async () => {
     await db.rpc(OWNER, "api.invite_budget_member($1::uuid, 'member@example.com')", [INVITE]);
     await db.rpc(MEMBER, "api.respond_budget_invite($1::uuid, true)", [INVITE]);
     await pair(MEMBER, TG_MEMBER, "anggota");
 
-    // Own budget first.
-    expect((await context(TG_MEMBER)).budget).toMatchObject({ owner_id: MEMBER, is_own: true });
+    // Own budget first; the shared one is offered.
+    const own = await context(TG_MEMBER);
+    expect(own.budget).toMatchObject({ owner_id: MEMBER, is_own: true });
+    expect(own.budgets?.map((b) => [b.owner_id, b.is_own])).toEqual([
+      [MEMBER, true],
+      [OWNER, false],
+    ]);
 
-    await db.rpc(MEMBER, "api.set_active_budget($1::uuid)", [OWNER]);
+    const switched = await setBudget(TG_MEMBER, OWNER);
+    expect(switched.budget).toMatchObject({ owner_id: OWNER, is_own: false });
     const ctx = await context(TG_MEMBER);
     expect(ctx.budget).toMatchObject({ owner_id: OWNER, is_own: false });
     expect(ctx.accounts?.map((a) => a.id)).toEqual([OWNER_CASH, OWNER_BANK]);
@@ -336,13 +352,63 @@ describe("shared budgets", () => {
     expect(await transactionCount(OWNER, draft.transaction_id)).toBe(1);
   });
 
-  it("refuses drafts made for a budget that is no longer active", async () => {
+  it("is independent of the budget shown on the web", async () => {
+    await db.rpc(MEMBER, "api.set_active_budget(null)");
+    expect((await context(TG_MEMBER)).budget).toMatchObject({ owner_id: OWNER });
+    await db.rpc(MEMBER, "api.set_active_budget($1::uuid)", [OWNER]);
+    await setBudget(TG_MEMBER, null);
+    expect((await context(TG_MEMBER)).budget).toMatchObject({ owner_id: MEMBER, is_own: true });
+    await db.rpc(MEMBER, "api.set_active_budget(null)");
+    await setBudget(TG_MEMBER, OWNER);
+  });
+
+  it("only offers budgets the user may record into", async () => {
+    expect(await errorOf(setBudget(TG_MEMBER, OTHER))).toBe("NOT_FOUND");
+    expect(await errorOf(db.rpc(MEMBER, "api.telegram_set_budget($1::uuid)", [OTHER]))).toBe("NOT_FOUND");
+  });
+
+  it("sets the default wallet within the chat's budget, and clears it on a switch", async () => {
+    const result = await db.service<{ default_account_id: string; account_name: string }>(
+      "api.tg_set_default_account($1, $2, $3, $4, $5::uuid)",
+      [BOT, nextUpdate(), TG_MEMBER.user, TG_MEMBER.chat, OWNER_CASH],
+    );
+    expect(result).toMatchObject({ default_account_id: OWNER_CASH, account_name: "Tunai" });
+    expect(
+      await errorOf(
+        db.service("api.tg_set_default_account($1, $2, $3, $4, $5::uuid)", [BOT, nextUpdate(), TG_MEMBER.user, TG_MEMBER.chat, MEMBER_CASH]),
+      ),
+    ).toBe("ACCOUNT_NOT_FOUND");
+    // The web checks against the chat's budget too, not the one it shows.
+    expect(await errorOf(db.rpc(MEMBER, "api.telegram_set_default_account($1::uuid)", [MEMBER_CASH]))).toBe("ACCOUNT_NOT_FOUND");
+
+    // Switching budgets from the web: the old default and open drafts go away.
+    const category = await foodCategory(TG_MEMBER);
+    const draft = await createDraft(TG_MEMBER, { amount_rupiah: "1000", account_id: OWNER_CASH, category_id: category });
+    const web = await db.rpc<{ link: { budget: { owner_id: string }; default_account_id: string | null; accounts: { id: string }[] } }>(
+      MEMBER,
+      "api.telegram_set_budget(null)",
+    );
+    expect(web.link).toMatchObject({ budget: { owner_id: MEMBER }, default_account_id: null, accounts: [{ id: MEMBER_CASH }] });
+    expect(await errorOf(commit(TG_MEMBER, draft.id, draft.version))).toBe("DRAFT_CLOSED");
+
+    await db.rpc(MEMBER, "api.telegram_set_budget($1::uuid)", [OWNER]);
+  });
+
+  it("refuses drafts made for a budget the chat no longer records into", async () => {
     const category = await foodCategory(TG_MEMBER);
     const draft = await createDraft(TG_MEMBER, { amount_rupiah: "1000", account_id: OWNER_CASH, category_id: category });
     await db.rpc(OWNER, "api.remove_budget_member($1::uuid)", [INVITE]);
 
-    expect(await errorOf(commit(TG_MEMBER, draft.id, draft.version))).toBe("BUDGET_CHANGED");
+    expect(await errorOf(commit(TG_MEMBER, draft.id, draft.version))).toBe("DRAFT_CLOSED");
     expect((await context(TG_MEMBER)).budget).toMatchObject({ owner_id: MEMBER, is_own: true });
+  });
+
+  it("does not switch back on its own after a re-invite", async () => {
+    const reinvite = "50000000-0000-4000-8000-000000000002";
+    await db.rpc(OWNER, "api.invite_budget_member($1::uuid, 'member@example.com')", [reinvite]);
+    await db.rpc(MEMBER, "api.respond_budget_invite($1::uuid, true)", [reinvite]);
+    expect((await context(TG_MEMBER)).budget).toMatchObject({ owner_id: MEMBER, is_own: true });
+    await db.rpc(MEMBER, "api.remove_budget_member($1::uuid)", [reinvite]);
   });
 });
 

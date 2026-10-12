@@ -13,9 +13,14 @@ import { todayJakarta } from "../date-utils";
 import { BotDbRejectedError, type BotContext, type BotDb, type BotDraft, type TelegramIdentity } from "./bot-db";
 import {
   backRow,
+  budgetChosenText,
+  budgetKeyboard,
+  budgetText,
   categoryButtons,
   dateButtons,
   decodeCallback,
+  defaultWalletKeyboard,
+  defaultWalletSavedText,
   draftKeyboard,
   draftText,
   editKeyboard,
@@ -140,6 +145,18 @@ async function onCommand(
       await reply(recentText(rows, ctx.today));
       return;
     }
+    case "budget": {
+      const ctx = await deps.db.getContext(who);
+      if (!ctx.linked) {
+        await reply(texts.notLinked(deps.appUrl));
+        return;
+      }
+      // With a single budget there is nothing to pick; offer the default wallet instead.
+      const askWallet = !ctx.default_account_id && ctx.accounts.length > 0;
+      const keyboard = ctx.budgets.length > 1 ? budgetKeyboard(ctx) : askWallet ? defaultWalletKeyboard(ctx) : undefined;
+      await reply(budgetText(ctx), keyboard);
+      return;
+    }
     case "disconnect": {
       const ctx = await deps.db.getContext(who);
       if (ctx.linked) await reply(texts.confirmUnlink, unlinkKeyboard);
@@ -171,7 +188,7 @@ async function onTransactionText(
     const amount = parseAmountOnly(text);
     if (amount) {
       const draft = await deps.db.updateDraft(updateId, who, active.id, active.version, { amount_rupiah: amount });
-      await reply(draftText(draft, ctx.today, ctx.budget), draftKeyboard(draft, ctx));
+      await reply(draftText(draft, ctx.today, ctx), draftKeyboard(draft, ctx));
       return;
     }
   }
@@ -190,7 +207,7 @@ async function onTransactionText(
   const notes: string[] = [];
   if (parsed.walletNotFound) notes.push(texts.walletNotFound);
   else if (!draft.account_id && !ctx.default_account_id) notes.push(texts.noDefaultWallet);
-  const body = draftText(draft, ctx.today, ctx.budget);
+  const body = draftText(draft, ctx.today, ctx);
   await reply(notes.length ? `${body}\n\n${notes.join("\n")}` : body, draftKeyboard(draft, ctx));
 }
 
@@ -249,6 +266,21 @@ async function runAction(
     return undefined;
   }
 
+  if (action.kind === "pickBudget") {
+    await db.setBudget(updateId, who, action.ownerId);
+    const ctx = await db.getContext(who);
+    if (!ctx.linked) throw new BotDbRejectedError("TELEGRAM_NOT_LINKED");
+    const askWallet = !ctx.default_account_id && ctx.accounts.length > 0;
+    await edit(budgetChosenText(ctx), askWallet ? defaultWalletKeyboard(ctx) : undefined);
+    return undefined;
+  }
+
+  if (action.kind === "pickDefaultWallet") {
+    const result = await db.setDefaultAccount(updateId, who, action.accountId);
+    await edit(defaultWalletSavedText(result.budget, result.account_name));
+    return "Tersimpan";
+  }
+
   switch (action.kind) {
     case "save": {
       const result = await db.commitDraft(updateId, who, action.draftId, action.version);
@@ -281,7 +313,7 @@ async function runAction(
   if (draft.version !== action.version) throw new BotDbRejectedError("VERSION_CONFLICT");
 
   const show = (d: BotDraft, suffix?: string, keyboard?: InlineKeyboard) =>
-    edit(suffix ? `${draftText(d, ctx.today, ctx.budget)}\n\n${suffix}` : draftText(d, ctx.today, ctx.budget), keyboard ?? draftKeyboard(d, ctx));
+    edit(suffix ? `${draftText(d, ctx.today, ctx)}\n\n${suffix}` : draftText(d, ctx.today, ctx), keyboard ?? draftKeyboard(d, ctx));
   const change = async (changes: Parameters<BotDb["updateDraft"]>[4]) => {
     const updated = await db.updateDraft(updateId, who, draft.id, draft.version, changes);
     await show(updated);

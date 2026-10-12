@@ -44,6 +44,7 @@ await call("setWebhook", {
 await call("setMyCommands", {
   commands: [
     { command: "help", description: "Contoh pesan dan bantuan" },
+    { command: "budget", description: "Pilih anggaran tujuan dan dompet default" },
     { command: "last", description: "5 transaksi terakhir" },
     { command: "cancel", description: "Batalkan draft aktif" },
     { command: "disconnect", description: "Putuskan Telegram dari akun" },

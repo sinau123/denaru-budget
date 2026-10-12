@@ -10,6 +10,12 @@ const DRAFT_ID = "9b2f6a2e-3c1d-4e5f-8a9b-0c1d2e3f4a5b";
 const CASH = "11111111-2222-4333-8444-555555555555";
 const FOOD = "66666666-7777-4888-9999-aaaaaaaaaaaa";
 const USER = 4242;
+const OWN = "0a0a0a0a-0000-4000-8000-000000000001";
+const SHARED = "0b0b0b0b-0000-4000-8000-000000000002";
+const BUDGETS = [
+  { owner_id: OWN, owner_name: "Budi", is_own: true },
+  { owner_id: SHARED, owner_name: "Sari", is_own: false },
+];
 const SENT = Math.floor(new Date("2026-10-12T03:00:00Z").getTime() / 1000);
 
 const draft = (overrides: Partial<BotDraft> = {}): BotDraft => ({
@@ -36,7 +42,8 @@ const draft = (overrides: Partial<BotDraft> = {}): BotDraft => ({
 const linked = (overrides: Partial<Extract<BotContext, { linked: true }>> = {}): BotContext => ({
   linked: true,
   today: "2026-10-12",
-  budget: { owner_id: "owner", owner_name: "Saya", is_own: true },
+  budget: { owner_id: OWN, owner_name: "Budi", is_own: true },
+  budgets: [{ owner_id: OWN, owner_name: "Budi", is_own: true }],
   default_account_id: CASH,
   accounts: [{ id: CASH, name: "Tunai", type: "cash", opened_on: "2026-10-01" }],
   categories: [{ id: FOOD, name: "Makanan", type: "expense", seed_key: "expense_food", parent_id: null, parent_name: null }],
@@ -56,6 +63,8 @@ function fakeDb(): { [K in keyof BotDb]: ReturnType<typeof vi.fn> } {
     cancelDraft: vi.fn().mockResolvedValue({ cancelled: true }),
     recentTransactions: vi.fn().mockResolvedValue([]),
     unlink: vi.fn().mockResolvedValue({ unlinked: true }),
+    setBudget: vi.fn().mockResolvedValue({ budget: BUDGETS[1] }),
+    setDefaultAccount: vi.fn().mockResolvedValue({ budget: BUDGETS[1], default_account_id: CASH, account_name: "Tunai" }),
   };
 }
 
@@ -111,6 +120,8 @@ describe("callback data", () => {
       { kind: "pickDate", draftId: DRAFT_ID, version: 2, date: "2026-10-11" },
       { kind: "pickAmount", draftId: DRAFT_ID, version: 2, index: 1 },
       { kind: "unlink", confirm: true },
+      { kind: "pickBudget", ownerId: SHARED },
+      { kind: "pickDefaultWallet", accountId: CASH },
     ];
     for (const action of actions) {
       const data = encodeCallback(action);
@@ -120,7 +131,7 @@ describe("callback data", () => {
   });
 
   it("rejects malformed data", () => {
-    for (const data of ["", "s", "s:abc:1", `s:${"A".repeat(22)}:0`, "zz:AAAAAAAAAAAAAAAAAAAAAA:1", "a:AAAAAAAAAAAAAAAAAAAAAA:1:9"]) {
+    for (const data of ["", "s", "s:abc:1", `s:${"A".repeat(22)}:0`, "zz:AAAAAAAAAAAAAAAAAAAAAA:1", "a:AAAAAAAAAAAAAAAAAAAAAA:1:9", "g:short", "dw:"]) {
       expect(decodeCallback(data)).toBeNull();
     }
   });
@@ -264,5 +275,55 @@ describe("buttons", () => {
   it("disconnects only after the confirmation button", async () => {
     await handleUpdate(callbackUpdate({ kind: "unlink", confirm: true }), deps);
     expect(db.unlink).toHaveBeenCalledWith("200", { telegramUserId: String(USER), chatId: String(USER) });
+  });
+});
+
+describe("budget choice", () => {
+  const who = { telegramUserId: String(USER), chatId: String(USER) };
+
+  it("/budget lists the budgets, marking the one the chat records into", async () => {
+    db.getContext.mockResolvedValue(linked({ budgets: BUDGETS }));
+    await handleUpdate(textUpdate("/budget"), deps);
+    expect(telegram.sendMessage.mock.calls[0][1]).toContain("Anggaran saya");
+    expect(sentKeyboard().flat().map((b) => b.text)).toEqual(["✓ Anggaran saya", "Anggaran Sari"]);
+    expect(callbacks(sentKeyboard())).toEqual([
+      { kind: "pickBudget", ownerId: OWN },
+      { kind: "pickBudget", ownerId: SHARED },
+    ]);
+  });
+
+  it("/budget without shared budgets offers the default wallet instead", async () => {
+    db.getContext.mockResolvedValue(linked({ default_account_id: null }));
+    await handleUpdate(textUpdate("/budget"), deps);
+    expect(telegram.sendMessage.mock.calls[0][1]).toContain("Pilih dompet default");
+    expect(callbacks(sentKeyboard())).toEqual([{ kind: "pickDefaultWallet", accountId: CASH }]);
+  });
+
+  it("switches the budget and asks for a default wallet when it has none", async () => {
+    db.getContext.mockResolvedValue(linked({ budgets: BUDGETS, budget: BUDGETS[1], default_account_id: null }));
+    await handleUpdate(callbackUpdate({ kind: "pickBudget", ownerId: SHARED }), deps);
+    expect(db.setBudget).toHaveBeenCalledWith("200", who, SHARED);
+    const [, , text, options] = telegram.editMessageText.mock.calls[0];
+    expect(text).toContain("Anggaran Sari");
+    expect(callbacks(options.keyboard)).toEqual([{ kind: "pickDefaultWallet", accountId: CASH }]);
+  });
+
+  it("saves the default wallet from the chat", async () => {
+    await handleUpdate(callbackUpdate({ kind: "pickDefaultWallet", accountId: CASH }), deps);
+    expect(db.setDefaultAccount).toHaveBeenCalledWith("200", who, CASH);
+    expect(telegram.editMessageText.mock.calls[0][2]).toContain("Tunai");
+    expect(telegram.answerCallbackQuery).toHaveBeenCalledWith("cb-1", "Tersimpan");
+  });
+
+  it("refuses a budget the user no longer has access to", async () => {
+    db.setBudget.mockRejectedValue(new BotDbRejectedError("NOT_FOUND"));
+    await handleUpdate(callbackUpdate({ kind: "pickBudget", ownerId: SHARED }), deps);
+    expect(telegram.answerCallbackQuery).toHaveBeenCalledWith("cb-1", expect.stringContaining("tidak ditemukan"));
+  });
+
+  it("shows the target budget on drafts when the user has more than one", async () => {
+    db.getContext.mockResolvedValue(linked({ budgets: BUDGETS, budget: BUDGETS[1] }));
+    await handleUpdate(textUpdate("kopi 18rb"), deps);
+    expect(telegram.sendMessage.mock.calls[0][1]).toContain("Anggaran: Sari");
   });
 });

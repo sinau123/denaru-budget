@@ -166,10 +166,18 @@ export type TelegramLink = {
   telegram_user_id: string;
   username: string;
   first_name: string;
-  /** May point to a wallet of another budget after switching; the bot then asks. */
+  /** A wallet of `budget`; cleared when the chat switches budgets. */
   default_account_id: string | null;
+  /** The budget chat transactions go into, chosen independently of the budget the web shows. */
+  budget: TelegramBudget;
+  /** Own budget first, then accepted shares. */
+  budgets: TelegramBudget[];
+  /** Active wallets of `budget`, for the default wallet. */
+  accounts: { id: string; name: string }[];
   created_at: string;
 };
+
+export type TelegramBudget = { owner_id: string; owner_name: string; is_own: boolean };
 
 /** A pairing code that is still valid; claimed once someone pressed Start in the bot. */
 export type TelegramPending = {

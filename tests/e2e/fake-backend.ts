@@ -86,12 +86,28 @@ export async function installFakeBackend(page: Page, opts: { onboarded?: boolean
 
   // Telegram pairing state (PRD F11). claimTelegram() plays the bot receiving /start <code>.
   const telegram: {
-    link: { id: string; telegram_user_id: string; username: string; first_name: string; default_account_id: string | null; created_at: string } | null;
+    link: {
+      id: string;
+      telegram_user_id: string;
+      username: string;
+      first_name: string;
+      default_account_id: string | null;
+      budget: { owner_id: string; owner_name: string; is_own: boolean };
+      budgets: { owner_id: string; owner_name: string; is_own: boolean }[];
+      accounts: { id: string; name: string }[];
+      created_at: string;
+    } | null;
     pending: { id: string; expires_at: string; claimed: boolean; username: string; first_name: string } | null;
   } = { link: null, pending: null };
   const claimTelegram = () => {
     if (telegram.pending) telegram.pending = { ...telegram.pending, claimed: true, username: "dewi_l", first_name: "Dewi" };
   };
+
+  // The chat's budget is chosen separately from the web's active budget.
+  const ownTelegramBudget = { owner_id: userId, owner_name: "Dewi Lestari", is_own: true };
+  const sharedTelegramBudget = { owner_id: ownerId, owner_name: "Budi Santoso", is_own: false };
+  const telegramAccounts = (shared: boolean) =>
+    shared ? [{ id: "acc-budi", name: "Kas Budi" }] : accounts.filter((a) => !a.archived_at).map((a) => ({ id: a.id, name: a.name }));
 
   const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     telegram_get_status: () => telegram,
@@ -101,7 +117,11 @@ export async function installFakeBackend(page: Page, opts: { onboarded?: boolean
     },
     telegram_confirm_link: () => {
       const p = telegram.pending!;
-      telegram.link = { id: "link-1", telegram_user_id: "4242", username: p.username, first_name: p.first_name, default_account_id: null, created_at: new Date().toISOString() };
+      telegram.link = {
+        id: "link-1", telegram_user_id: "4242", username: p.username, first_name: p.first_name, default_account_id: null,
+        budget: ownTelegramBudget, budgets: [ownTelegramBudget, sharedTelegramBudget], accounts: telegramAccounts(false),
+        created_at: new Date().toISOString(),
+      };
       telegram.pending = null;
       return telegram;
     },
@@ -111,6 +131,11 @@ export async function installFakeBackend(page: Page, opts: { onboarded?: boolean
     },
     telegram_set_default_account: (a) => {
       telegram.link = { ...telegram.link!, default_account_id: (a.p_account_id as string | null) ?? null };
+      return telegram;
+    },
+    telegram_set_budget: (a) => {
+      const shared = a.p_owner_id === ownerId;
+      telegram.link = { ...telegram.link!, budget: shared ? sharedTelegramBudget : ownTelegramBudget, accounts: telegramAccounts(shared), default_account_id: null };
       return telegram;
     },
     telegram_unlink: () => {
