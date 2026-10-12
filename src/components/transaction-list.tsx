@@ -5,6 +5,7 @@ import { relativeDayLabel, todayJakarta } from "@/lib/date-utils";
 import { formatRupiah, sumRupiah } from "@/lib/money-utils";
 
 import { useI18n } from "./i18n-provider";
+import { TransactionAudit } from "./transaction-audit";
 import { cx } from "./ui/cx";
 
 /**
@@ -72,6 +73,7 @@ export function TransactionList({
                         {r.type === "transfer" ? t.transactionType.transfer : r.account_name}
                         {r.note ? ` · ${r.note}` : ""}
                       </p>
+                      <TransactionAudit row={r} className="truncate text-xs text-ink-faint" />
                     </div>
                     <p
                       className={cx(

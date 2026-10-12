@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-import { useProfile } from "@/hooks/use-budget-data";
+import { useProfile, useResetOnBudgetChange } from "@/hooks/use-budget-data";
 import { errorMessage } from "@/lib/api/api-errors";
 
 import { useAuth } from "./auth-provider";
@@ -39,6 +39,7 @@ export function RequireSession({ children }: { children: React.ReactNode }) {
 /** Ensures the profile exists and onboarding is complete before the app shell. */
 export function RequireOnboarded({ children }: { children: React.ReactNode }) {
   const profile = useProfile();
+  useResetOnBudgetChange();
   const router = useRouter();
   const pathname = usePathname();
   const { t } = useI18n();

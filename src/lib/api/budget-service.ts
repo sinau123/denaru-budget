@@ -2,6 +2,8 @@ import { callRpc } from "./rpc-client";
 import type {
   Account,
   AccountType,
+  BudgetMember,
+  BudgetSharing,
   Category,
   CategoryType,
   DailyTotal,
@@ -31,6 +33,30 @@ export function bootstrapUser(displayName?: string) {
 
 export function updateProfile(displayName: string) {
   return callRpc<Profile>("update_profile", { p_display_name: displayName });
+}
+
+// Budget sharing -----------------------------------------------------------
+
+export function getBudgetSharing() {
+  return callRpc<BudgetSharing>("get_budget_sharing");
+}
+
+export function inviteBudgetMember(id: string, email: string) {
+  return callRpc<BudgetMember>("invite_budget_member", { p_id: id, p_email: email });
+}
+
+export function respondBudgetInvite(id: string, accept: boolean) {
+  return callRpc<BudgetSharing>("respond_budget_invite", { p_id: id, p_accept: accept });
+}
+
+/** The owner removes a member or cancels an invite; a member leaves. */
+export function removeBudgetMember(id: string) {
+  return callRpc<BudgetSharing>("remove_budget_member", { p_id: id });
+}
+
+/** Null switches back to the user's own budget. */
+export function setActiveBudget(ownerId: string | null) {
+  return callRpc<Profile>("set_active_budget", { p_owner_id: ownerId });
 }
 
 // Accounts ------------------------------------------------------------------

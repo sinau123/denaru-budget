@@ -16,6 +16,8 @@ export const CSV_HEADER = [
   "dompet_tujuan",
   "kategori",
   "catatan",
+  "dicatat_oleh",
+  "diubah_oleh",
 ] as const;
 
 // Spreadsheet apps execute cells starting with these characters as formulas.
@@ -41,6 +43,8 @@ export function transactionToCsvRow(t: TransactionRow): string {
     t.to_account_name ?? "",
     t.category_name ?? "",
     t.note,
+    t.created_by_name ?? "",
+    t.updated_by_name ?? "",
   ];
   return cells.map((c) => escapeCsvCell(String(c))).join(",");
 }

@@ -56,6 +56,10 @@ export const id = {
   connection: {
     offline: "Anda sedang offline. Data dapat dilihat dari layar terakhir, tetapi penyimpanan memerlukan koneksi.",
   },
+  budgetBanner: {
+    viewing: (name: string) => `Anda sedang memakai anggaran ${name}.`,
+    change: "Ganti",
+  },
   session: {
     connectFailed: "Tidak dapat terhubung",
     pausedHint:
@@ -190,9 +194,16 @@ export const id = {
     emptyBody: "Transaksi yang dicatat akan muncul di sini.",
     loadMore: "Muat lebih banyak",
     shown: (count: number) => `${count} transaksi ditampilkan.`,
+    recordedBy: (name: string) => `Dicatat oleh ${name}`,
+    editedBy: (name: string) => `diubah oleh ${name}`,
+    lastEditedBy: (name: string, when: string) => `terakhir diubah oleh ${name}, ${when}`,
+    you: "Anda",
+    formerMember: "pengguna lain",
   },
   wallets: {
     totalBalance: "Total saldo saat ini",
+    sharedReadOnly: (name: string) =>
+      `Dompet milik ${name}. Anda dapat melihat saldo dan mencatat transaksi, tetapi tidak dapat mengubah dompet.`,
     newWallet: "Dompet baru",
     editWallet: "Ubah dompet",
     archivedTitle: "Diarsipkan",
@@ -237,6 +248,37 @@ export const id = {
     signedInAs: (email: string) => `Masuk sebagai ${email}.`,
     googleUser: "pengguna Google",
     signOut: "Keluar",
+    categoriesShared: (name: string) =>
+      `Kategori dikelola oleh ${name}. Anda dapat memakainya untuk transaksi, tetapi tidak dapat mengubahnya.`,
+    budgetTitle: "Anggaran yang ditampilkan",
+    budgetDescription: "Pilih pembukuan yang tampil di Ringkasan, Transaksi, dan Dompet.",
+    budgetLabel: "Anggaran aktif",
+    ownBudget: "Anggaran saya",
+    sharedBudget: (name: string) => `Anggaran ${name}`,
+    invitesTitle: "Undangan masuk",
+    inviteFrom: (name: string, email: string) => `${name} (${email}) mengundang Anda ke anggarannya.`,
+    accept: "Terima",
+    decline: "Tolak",
+    shareTitle: "Bagikan anggaran saya",
+    shareDescription:
+      "Orang yang diundang dapat menambah, mengubah, dan menghapus transaksi serta melihat ringkasan dan dompet Anda. Dompet dan kategori tetap hanya bisa diubah oleh Anda. Maksimal 4 orang.",
+    inviteEmail: "Email Google orang yang diundang",
+    invitePlaceholder: "nama@gmail.com",
+    invite: "Undang",
+    invited: (email: string) => `Undangan untuk ${email} dibuat. Undangan muncul di Pengaturan setelah orang tersebut masuk dengan email itu.`,
+    memberPending: "Menunggu diterima",
+    memberAccepted: "Bergabung",
+    removeMember: "Hapus akses",
+    cancelInvite: "Batalkan",
+    noMembers: "Belum ada yang diundang.",
+    joinedTitle: "Anggaran yang dibagikan ke saya",
+    leave: "Keluar",
+    removeTitle: "Hapus akses?",
+    removeBody: (email: string) =>
+      `${email} tidak lagi dapat melihat atau mencatat transaksi di anggaran Anda. Transaksi yang sudah dicatat tetap ada.`,
+    leaveTitle: "Keluar dari anggaran?",
+    leaveBody: (name: string) =>
+      `Anda tidak lagi dapat melihat atau mencatat transaksi di anggaran ${name}. Untuk bergabung lagi diperlukan undangan baru.`,
   },
   login: {
     tagline: "Catat pengeluaran dalam hitungan detik. Lihat ke mana uang pergi setiap bulan.",
@@ -300,6 +342,10 @@ export const id = {
       IMMUTABLE_FIELD: "Data ini tidak dapat diubah.",
       NOT_AUTHENTICATED: "Sesi berakhir. Silakan masuk kembali.",
       EXPORT_CHANGED: "Data berubah selama ekspor. Ekspor dibatalkan; silakan coba lagi.",
+      EMAIL_INVALID: "Email tidak valid.",
+      INVITE_SELF: "Anda tidak dapat mengundang diri sendiri.",
+      INVITE_EXISTS: "Email ini sudah diundang.",
+      MEMBER_LIMIT: "Satu anggaran dapat dibagikan ke maksimal 4 orang.",
       UNKNOWN: "Terjadi kesalahan. Coba lagi beberapa saat lagi.",
     } satisfies Record<ApiErrorCode, string>,
   },

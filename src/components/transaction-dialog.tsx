@@ -6,6 +6,7 @@ import type { Transaction, TransactionRow, TransactionType } from "@/lib/api/api
 import { formatRupiah } from "@/lib/money-utils";
 
 import { useI18n } from "./i18n-provider";
+import { TransactionAudit } from "./transaction-audit";
 import { TransactionForm } from "./transaction-form";
 import { Dialog } from "./ui/dialog";
 
@@ -35,6 +36,10 @@ export function TransactionDialogProvider({ children }: { children: React.ReactN
         open={!!state}
         onClose={() => setState(null)}
         title={editing ? t.transactionDialog.editTitle : t.transactionDialog.addTitle}
+        description={
+          // Names come only with history rows.
+          editing && "created_by_name" in editing ? <TransactionAudit row={editing} detailed /> : undefined
+        }
       >
         {state ? (
           <TransactionForm

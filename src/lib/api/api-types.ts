@@ -11,8 +11,44 @@ export type Profile = {
   timezone: string;
   currency: string;
   data_version: string;
+  /** About the signed-in user's own wallets (onboarding), not the active budget. */
   has_accounts: boolean;
   today: string;
+  /** The budget the app is showing: the user's own, or one shared with them. */
+  budget: ActiveBudget;
+};
+
+export type ActiveBudget = {
+  owner_id: string;
+  owner_name: string;
+  is_own: boolean;
+};
+
+export type BudgetMemberStatus = "pending" | "accepted";
+
+/** Someone the user invited to their own budget. */
+export type BudgetMember = {
+  id: string;
+  email: string;
+  status: BudgetMemberStatus;
+  created_at: string;
+  accepted_at: string | null;
+};
+
+/** An invite to, or membership of, someone else's budget. */
+export type SharedBudget = {
+  id: string;
+  owner_id: string;
+  owner_name: string;
+  owner_email: string;
+  status: BudgetMemberStatus;
+  created_at: string;
+  accepted_at: string | null;
+};
+
+export type BudgetSharing = {
+  members: BudgetMember[];
+  shared_with_me: SharedBudget[];
 };
 
 export type Account = {
@@ -51,6 +87,10 @@ export type Transaction = {
   occurred_on: string;
   note: string;
   version: number;
+  /** User who recorded it; differs from the budget owner in a shared budget. */
+  created_by: string | null;
+  /** User who last edited it; null until the first edit. */
+  updated_by: string | null;
   created_at: string;
   updated_at: string;
   replayed?: boolean;
@@ -60,6 +100,8 @@ export type TransactionRow = Omit<Transaction, "replayed"> & {
   account_name: string;
   to_account_name: string | null;
   category_name: string | null;
+  created_by_name: string | null;
+  updated_by_name: string | null;
 };
 
 export type CategoryTotal = {

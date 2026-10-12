@@ -36,6 +36,10 @@ export const API_ERROR_CODES = [
   "IMMUTABLE_FIELD",
   "NOT_AUTHENTICATED",
   "EXPORT_CHANGED",
+  "EMAIL_INVALID",
+  "INVITE_SELF",
+  "INVITE_EXISTS",
+  "MEMBER_LIMIT",
   "UNKNOWN",
 ] as const;
 
@@ -59,6 +63,9 @@ const FIELDS: Partial<Record<ApiErrorCode, string>> = {
   SAME_ACCOUNT: "to_account_id",
   TRANSFER_TARGET_REQUIRED: "to_account_id",
   NAME_INVALID: "name",
+  EMAIL_INVALID: "email",
+  INVITE_SELF: "email",
+  INVITE_EXISTS: "email",
 };
 
 export class ApiError extends Error {

@@ -1,6 +1,6 @@
 # PRD dan Tech Stack Aplikasi Pencatat Pengeluaran
 
-Versi 1.1 | 10 Oktober 2026 | MVP pribadi dan fase kedua Telegram
+Versi 1.2 | 12 Oktober 2026 | MVP pribadi, berbagi anggaran, dan fase kedua Telegram
 
 ## 01 Ringkasan produk
 
@@ -11,10 +11,10 @@ Aplikasi web untuk mencatat pengeluaran, pemasukan, dan perpindahan uang antar d
 ### Pengguna dan batas produk
 
 - Pengguna utama: individu yang mencatat transaksi pribadi setiap hari.
-- Pilot: 1 sampai 5 pengguna. Anggota keluarga dapat memakai akun masing-masing; data antar akun tetap terpisah.
+- Pilot: 1 sampai 5 pengguna. Anggota keluarga memakai akun masing-masing; data antar akun terpisah kecuali pemilik membagikan anggarannya (F14).
 - Bahasa Indonesia, mata uang IDR tanpa pecahan rupiah, dan zona waktu Asia/Jakarta.
 - Satu pengguna dapat memiliki beberapa dompet, misalnya Tunai, Bank, dan E-wallet. Dompet merupakan catatan manual, bukan koneksi ke rekening asli.
-- Satu pembukuan dimiliki satu pengguna. Kolaborasi dalam satu dompet keluarga masuk tahap berikutnya.
+- Satu pembukuan dimiliki satu pengguna. Pemilik dapat mengundang maksimal 4 orang untuk ikut mencatat transaksi di pembukuannya (F14); dompet dan kategori tetap dikelola pemilik.
 - Aplikasi digunakan secara personal dan nonkomersial. Perubahan menjadi produk komersial memerlukan evaluasi hosting. [2]
 
 ### Masalah yang diselesaikan
@@ -40,7 +40,7 @@ Catatan pengeluaran sering tersebar dan terlupakan karena proses input terlalu p
 
 Pengguna masuk menggunakan Google melalui Supabase Auth. Aplikasi membutuhkan akses profil dasar dan email saja. Google OAuth memerlukan konfigurasi consent screen, client ID, dan redirect URL. [4]
 
-**Kriteria penerimaan:** login berhasil membuka onboarding atau dashboard; pembatalan login menampilkan pilihan coba lagi; logout menghapus cache data aplikasi. Pengguna tanpa sesi tidak dapat membaca atau mengubah transaksi melalui API. Setiap akun hanya melihat datanya sendiri.
+**Kriteria penerimaan:** login berhasil membuka onboarding atau dashboard; pembatalan login menampilkan pilihan coba lagi; logout menghapus cache data aplikasi. Pengguna tanpa sesi tidak dapat membaca atau mengubah transaksi melalui API. Setiap akun hanya melihat datanya sendiri dan anggaran yang dibagikan kepadanya.
 
 ### F02 Onboarding dan kategori P0
 
@@ -90,7 +90,7 @@ Riwayat diurutkan berdasarkan tanggal terbaru dengan urutan tambahan yang stabil
 
 ### F09 Ekspor CSV P0
 
-Pengguna dapat mengunduh seluruh transaksi atau hasil filter, termasuk data dompet arsip. Kolom meliputi ID, tanggal, jenis, sumber, nominal rupiah, dompet asal atau utama, dompet tujuan, kategori, dan catatan.
+Pengguna dapat mengunduh seluruh transaksi atau hasil filter, termasuk data dompet arsip. Kolom meliputi ID, tanggal, jenis, sumber, nominal rupiah, dompet asal atau utama, dompet tujuan, kategori, catatan, nama pencatat, dan nama pengubah terakhir.
 
 **Kriteria penerimaan:** ekspor mencakup semua halaman hasil; format nominal berupa angka rupiah tanpa pemisah ribuan; tanggal memakai YYYY-MM-DD. Koma, kutip, baris baru, dan teks yang menyerupai formula spreadsheet ditangani aman. Jika ada permintaan data yang gagal, aplikasi tidak mengirim file yang seolah lengkap. CSV adalah salinan portabel; fitur impor belum tersedia.
 
@@ -99,6 +99,14 @@ Pengguna dapat mengunduh seluruh transaksi atau hasil filter, termasuk data domp
 Aplikasi responsif dan dapat ditambahkan ke home screen pada perangkat yang mendukung. Manifest, ikon, dan halaman offline disediakan. Saat offline, pengguna mendapat penjelasan bahwa penyimpanan memerlukan koneksi. [5]
 
 **Kriteria penerimaan:** tidak ada klaim transaksi berhasil sebelum respons server. Form yang gagal disimpan tetap ada selama halaman masih terbuka. Tidak ada antrean sinkronisasi offline pada MVP. Aplikasi memuat ulang data saat kembali aktif atau setelah mutasi berhasil.
+
+### F14 Berbagi anggaran P0
+
+Pemilik anggaran (user A) mengundang orang lain (user B) dari Pengaturan memakai email Google user B. Undangan muncul di Pengaturan user B setelah login dengan email tersebut; aplikasi tidak mengirim email. Setelah user B menerima, user B dapat menambah, mengubah, dan menghapus transaksi di anggaran user A, melihat Ringkasan yang sama, serta melihat dompet dan kategori user A tanpa dapat mengubahnya.
+
+User B memiliki pilihan Anggaran yang ditampilkan di Pengaturan: anggaran miliknya sendiri atau anggaran user A. Saat anggaran user A dipilih, Ringkasan, Transaksi, Dompet, dan ekspor menampilkan data yang sama persis dengan yang dilihat user A, dan banner di atas layar menyebut anggaran yang sedang dipakai. Menerima undangan tidak otomatis mengganti anggaran. Setiap transaksi menyimpan siapa yang mencatatnya dan siapa yang terakhir mengubahnya. Riwayat menampilkan "Dicatat oleh … · diubah oleh …" bila pencatat atau pengubah adalah orang lain; form edit menambahkan waktu perubahan terakhir. Pencatat tidak berubah ketika transaksi diedit.
+
+**Kriteria penerimaan:** hanya pemilik email yang diundang yang dapat menerima atau menolak; sebelum diterima tidak ada akses apa pun. Undangan ke diri sendiri, email ganda, dan lebih dari 4 orang per anggaran ditolak. Pemilik dapat membatalkan undangan atau mencabut akses; anggota dapat keluar. Setelah akses dicabut, anggota langsung kembali ke anggarannya sendiri dan tidak dapat membaca data pemilik. Anggota tidak dapat membuat, mengubah, mengarsipkan, atau menghapus dompet maupun kategori pemilik, dan tidak dapat memakai dompetnya sendiri di anggaran pemilik. Pemilik tidak dapat membaca anggaran pribadi anggota. Onboarding tetap meminta setiap pengguna membuat dompetnya sendiri.
 
 **Alur utama:** login, buat dompet, tambah transaksi, periksa ringkasan. Navigasi HP terdiri dari Ringkasan, Transaksi, Dompet, dan Pengaturan; tombol Tambah selalu mudah ditemukan.
 
@@ -136,7 +144,7 @@ Pada akhir contoh, total saldo Rp3.470.000 dan selisih arus kas Rp1.970.000. Ked
 
 P1 menjadi fase kedua yang diprioritaskan: integrasi Telegram agar pengguna dapat mencatat transaksi lewat chat. Scope mencakup menghubungkan akun, parsing teks, konfirmasi satu ketukan, serta penyimpanan ke pembukuan yang sama. Rinciannya ada pada bagian 10 sampai 12.
 
-P2 mencakup anggaran, transaksi berulang, impor CSV, dan pembukuan keluarga bersama. AI untuk memahami kalimat, foto struk, dan OCR dievaluasi kemudian. Sinkronisasi bank, WhatsApp, multi mata uang, utang piutang, pembagian tagihan, aplikasi native, serta pencatatan offline penuh berada di luar MVP.
+P2 mencakup batas anggaran per kategori, transaksi berulang, impor CSV, dan peran anggota yang lebih rinci (misalnya hanya baca) serta riwayat lengkap setiap perubahan transaksi. AI untuk memahami kalimat, foto struk, dan OCR dievaluasi kemudian. Sinkronisasi bank, WhatsApp, multi mata uang, utang piutang, pembagian tagihan, aplikasi native, serta pencatatan offline penuh berada di luar MVP.
 
 <!-- pagebreak -->
 
@@ -187,10 +195,11 @@ Pengecekan sesi di antarmuka digunakan untuk pengalaman navigasi. Otorisasi sesu
 
 | Tabel | Kolom utama | Ketentuan |
 | --- | --- | --- |
-| profiles | id UUID, display_name, timezone, currency, data_version | id merujuk auth.users; data_version bertambah ketika data bisnis berubah |
+| profiles | id UUID, display_name, timezone, currency, data_version, active_budget_id | id merujuk auth.users; data_version bertambah ketika data bisnis berubah; active_budget_id kosong berarti anggaran sendiri |
+| budget_members | id UUID, owner_id, invitee_email, member_id, status, accepted_at | status pending atau accepted; unik per pemilik dan email; maksimal 4 baris per pemilik |
 | accounts | id UUID, user_id, name, type, opening_balance_rupiah bigint, opened_on date, archived_at | type cash, bank, atau ewallet; saldo berjalan dihitung dari transaksi |
 | categories | id UUID, user_id, name, type, seed_key, archived_at | type income atau expense; seed_key unik per pengguna untuk kategori awal |
-| transactions | id UUID, user_id, type, amount_rupiah bigint, account_id, to_account_id, category_id, occurred_on date, note, version, source | type income, expense, atau transfer; nominal selalu positif |
+| transactions | id UUID, user_id, type, amount_rupiah bigint, account_id, to_account_id, category_id, occurred_on date, note, version, source, created_by, updated_by | type income, expense, atau transfer; nominal selalu positif; created_by dan updated_by diisi database dari auth.uid() saat insert atau edit dan tidak dapat ditulis klien |
 
 Semua entitas memiliki created_at dan updated_at bertipe timestamptz. profiles memakai id sebagai pemilik; tabel bisnis lain memakai user_id. Versi transaksi meningkat saat edit. source bernilai web pada MVP. UUID dibuat sekali per input dan digunakan kembali saat retry.
 
@@ -222,6 +231,12 @@ Simpan rupiah sebagai bigint dan hindari floating point. Input, parameter RPC, d
 | update_transaction | ID, expected_version, perubahan | Update atomik hanya jika versi sesuai; versi naik satu |
 | delete_transaction | ID dan expected_version | Konfirmasi di UI; penghapusan memengaruhi kedua sisi transfer |
 | export_transactions | Filter dan pagination internal | Urutan stabil, memeriksa semua halaman sebelum membuat file |
+| get_budget_sharing | Anggota anggaran saya dan undangan/anggaran untuk saya | Undangan masuk dicocokkan dengan email di auth.users, bukan input browser |
+| invite_budget_member | ID klien dan email | Idempotent per ID; menolak email tidak valid, diri sendiri, ganda, dan batas 4 orang |
+| respond_budget_invite, remove_budget_member | Terima/tolak; cabut akses atau keluar | Hanya penerima undangan, pemilik, atau anggota terkait |
+| set_active_budget | ID pemilik atau kosong | Hanya anggaran sendiri atau yang sudah diterima |
+
+RPC data anggaran (dompet, kategori, transaksi, riwayat, ringkasan, ekspor) membaca dan menulis anggaran aktif yang ditentukan database dari profiles.active_budget_id dan keanggotaan yang masih berlaku. RPC perubahan dompet dan kategori tetap hanya menyentuh baris milik auth.uid(). get_profile menyertakan anggaran aktif, dan data_version yang dikembalikan milik anggaran aktif agar ekspor tetap mendeteksi perubahan.
 
 Pada MVP web, gunakan RPC PostgreSQL dengan SECURITY INVOKER dan eksekusi hanya oleh authenticated. Fungsi memperoleh identitas dari auth.uid(); parameter user_id dari browser tidak dipercaya. RPC dengan SECURITY DEFINER hanya digunakan jika benar-benar diperlukan dan harus menambahkan pemeriksaan identitas, grants sempit, serta search_path tetap. [8]
 
@@ -230,6 +245,7 @@ Jika ID yang sama dikirim dengan payload berbeda, kembalikan konflik. Saat respo
 ### Isolasi dan perlindungan data
 
 - Aktifkan RLS pada semua tabel bisnis. Untuk SELECT, UPDATE, dan DELETE, pemilik harus cocok dengan auth.uid(); INSERT dan hasil UPDATE harus lulus WITH CHECK. UPDATE juga memerlukan kebijakan SELECT yang sesuai. [6]
+- Pengecualian berbagi anggaran: anggota yang sudah menerima undangan lolos SELECT pada profil, dompet, dan kategori pemilik, serta seluruh operasi transaksi pemilik. Daftar anggaran yang boleh diakses dihitung oleh fungsi SECURITY DEFINER sempit yang hanya menjawab untuk auth.uid().
 - Batasi grants tabel serta fungsi. Terapkan constraint meskipun klien melewati UI. RPC edit melakukan compare and update secara atomik; tabel bisnis tidak tersedia melalui endpoint REST langsung.
 - Jika memakai view, gunakan security_invoker agar kebijakan tabel dasar tetap berlaku. Jangan memberikan akses anonim ke data pengguna. [6]
 - Kosongkan cache saat logout atau pergantian akun. Jangan menaruh data transaksi di cache bersama pada server atau CDN. Service worker hanya menyimpan aset publik dan halaman offline.
@@ -261,6 +277,7 @@ Target performa merupakan sasaran pengembangan saat layanan sehat, bukan jaminan
 5. Nilai rupiah besar, nol, negatif, tanggal sebelum dompet dibuka, dan tanggal masa depan.
 6. Ekspor lebih dari 50 baris, filter transfer, teks berkoma atau berkutip, serta formula spreadsheet.
 7. Logout dan login akun lain; tidak ada data lama pada cache, layar, atau service worker.
+8. Berbagi anggaran: akses sebelum dan sesudah menerima undangan, undangan dari email lain, pengguna ketiga, perubahan dompet atau kategori oleh anggota, pencabutan akses saat anggota sedang memakai anggaran pemilik, serta pergantian anggaran tanpa sisa cache anggaran sebelumnya, serta pencatat dan pengubah terakhir transaksi yang tidak dapat dipalsukan.
 
 ### Cadangan dan pemulihan
 

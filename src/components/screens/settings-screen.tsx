@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 
-import { useCategories, useInvalidateUserData, useProfile } from "@/hooks/use-budget-data";
+import { useActiveBudget, useCategories, useInvalidateUserData, useProfile } from "@/hooks/use-budget-data";
 import { errorMessage } from "@/lib/api/api-errors";
 import type { Category, CategoryType } from "@/lib/api/api-types";
 import { createCategory, setCategoryArchived, updateCategory, updateProfile } from "@/lib/api/budget-service";
 import { flattenCategories } from "@/lib/category-utils";
 
 import { useAuth } from "../auth-provider";
+import { ActiveBudgetSection, IncomingInvitesSection, ShareBudgetSection } from "../budget-sharing-sections";
 import { ExportButton } from "../export-button";
 import { useI18n } from "../i18n-provider";
 import { LanguageSwitcher } from "../language-switcher";
@@ -17,6 +18,7 @@ import { cx } from "../ui/cx";
 import { inputClass } from "../ui/field";
 import { Notice } from "../ui/notice";
 import { Segmented } from "../ui/segmented";
+import { SettingsSection } from "../ui/settings-section";
 
 export function SettingsScreen() {
   const auth = useAuth();
@@ -30,25 +32,31 @@ export function SettingsScreen() {
 
       <ProfileSection />
 
-      <Section title={s.languageTitle} description={s.languageDescription}>
+      <IncomingInvitesSection />
+
+      <ActiveBudgetSection />
+
+      <SettingsSection title={s.languageTitle} description={s.languageDescription}>
         <div className="max-w-sm">
           <LanguageSwitcher />
         </div>
-      </Section>
+      </SettingsSection>
 
       <CategoriesSection />
 
-      <Section title={s.exportTitle} description={s.exportDescription}>
+      <ShareBudgetSection />
+
+      <SettingsSection title={s.exportTitle} description={s.exportDescription}>
         <div className="max-w-xs">
           <ExportButton filters={{}} label={s.exportAll} />
         </div>
-      </Section>
+      </SettingsSection>
 
-      <Section title={s.installTitle} description={s.installDescription} />
+      <SettingsSection title={s.installTitle} description={s.installDescription} />
 
-      <Section title={s.telegramTitle} description={s.telegramDescription} />
+      <SettingsSection title={s.telegramTitle} description={s.telegramDescription} />
 
-      <Section
+      <SettingsSection
         title={s.accountTitle}
         description={auth.status === "signed-in" ? s.signedInAs(auth.session.user.email ?? s.googleUser) : undefined}
       >
@@ -64,20 +72,8 @@ export function SettingsScreen() {
             {s.signOut}
           </Button>
         </div>
-      </Section>
+      </SettingsSection>
     </div>
-  );
-}
-
-function Section({ title, description, children }: { title: string; description?: string; children?: React.ReactNode }) {
-  return (
-    <section className="flex flex-col gap-3 rounded-3xl border border-rule bg-paper-raised p-5">
-      <div>
-        <h2 className="text-lg font-semibold">{title}</h2>
-        {description ? <p className="mt-0.5 text-sm text-ink-soft">{description}</p> : null}
-      </div>
-      {children}
-    </section>
   );
 }
 
@@ -90,7 +86,7 @@ function ProfileSection() {
   const value = name ?? profile.data?.display_name ?? "";
 
   return (
-    <Section title={t.settings.profileTitle} description={t.settings.profileDescription}>
+    <SettingsSection title={t.settings.profileTitle} description={t.settings.profileDescription}>
       <form
         className="flex flex-col gap-2 sm:flex-row"
         onSubmit={async (e) => {
@@ -116,12 +112,15 @@ function ProfileSection() {
       </form>
       {state.message ? <p role="status" className="text-sm text-accent">{state.message}</p> : null}
       {state.error ? <Notice tone="error">{state.error}</Notice> : null}
-    </Section>
+    </SettingsSection>
   );
 }
 
 function CategoriesSection() {
   const categories = useCategories();
+  const budget = useActiveBudget();
+  // Members of a shared budget use the owner's categories but cannot change them.
+  const readOnly = budget?.is_own === false;
   const invalidate = useInvalidateUserData();
   const { t } = useI18n();
   const s = t.settings;
@@ -153,7 +152,7 @@ function CategoriesSection() {
   }
 
   return (
-    <Section
+    <SettingsSection
       title={s.categoriesTitle}
       description={s.categoriesDescription}
     >
@@ -169,31 +168,34 @@ function CategoriesSection() {
           setNewParent("");
         }}
       />
-      <form
-        className="grid grid-cols-[1fr_auto] gap-2 sm:grid-cols-[1fr_12rem_auto]"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          const name = newName.trim();
-          if (!name) return setError(s.categoryNameRequired);
-          const ok = await run("new", () => createCategory(newId, name, type, newParent || null));
-          if (ok) {
-            setNewName("");
-            setNewId(crypto.randomUUID());
-          }
-        }}
-      >
-        <label className="col-span-2 sm:col-span-1">
-          <span className="sr-only">{s.newCategoryName}</span>
-          <input value={newName} maxLength={50} onChange={(e) => setNewName(e.target.value)} placeholder={s.newCategoryPlaceholder} className={inputClass} />
-        </label>
-        <label>
-          <span className="sr-only">{s.newCategoryParent}</span>
-          <ParentSelect value={newParent} options={parentOptions} onChange={setNewParent} />
-        </label>
-        <Button type="submit" pending={busy === "new"}>
-          {t.common.add}
-        </Button>
-      </form>
+      {readOnly && budget ? <Notice>{s.categoriesShared(budget.owner_name)}</Notice> : null}
+      {readOnly ? null : (
+        <form
+          className="grid grid-cols-[1fr_auto] gap-2 sm:grid-cols-[1fr_12rem_auto]"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const name = newName.trim();
+            if (!name) return setError(s.categoryNameRequired);
+            const ok = await run("new", () => createCategory(newId, name, type, newParent || null));
+            if (ok) {
+              setNewName("");
+              setNewId(crypto.randomUUID());
+            }
+          }}
+        >
+          <label className="col-span-2 sm:col-span-1">
+            <span className="sr-only">{s.newCategoryName}</span>
+            <input value={newName} maxLength={50} onChange={(e) => setNewName(e.target.value)} placeholder={s.newCategoryPlaceholder} className={inputClass} />
+          </label>
+          <label>
+            <span className="sr-only">{s.newCategoryParent}</span>
+            <ParentSelect value={newParent} options={parentOptions} onChange={setNewParent} />
+          </label>
+          <Button type="submit" pending={busy === "new"}>
+            {t.common.add}
+          </Button>
+        </form>
+      )}
       {error ? <Notice tone="error">{error}</Notice> : null}
       {categories.isError ? <Notice tone="error">{errorMessage(categories.error, t)}</Notice> : null}
       <ul className="divide-y divide-rule rounded-2xl border border-rule">
@@ -207,12 +209,13 @@ function CategoriesSection() {
               (p) => p.type === c.type && !p.parent_id && p.id !== c.id && (!p.archived_at || p.id === c.parent_id),
             )}
             busy={busy === c.id}
+            readOnly={readOnly}
             onSave={(name, parentId) => run(c.id, () => updateCategory(c.id, name, parentId))}
             onArchive={(archived) => run(c.id, () => setCategoryArchived(c.id, archived))}
           />
         ))}
       </ul>
-    </Section>
+    </SettingsSection>
   );
 }
 
@@ -247,6 +250,7 @@ function CategoryRow({
   hasChildren,
   parentOptions,
   busy,
+  readOnly,
   onSave,
   onArchive,
 }: {
@@ -255,6 +259,7 @@ function CategoryRow({
   hasChildren: boolean;
   parentOptions: Category[];
   busy: boolean;
+  readOnly: boolean;
   onSave: (name: string, parentId: string | null) => Promise<boolean>;
   onArchive: (archived: boolean) => Promise<boolean>;
 }) {
@@ -312,14 +317,18 @@ function CategoryRow({
         {depth === 1 ? <span className="sr-only">{t.settings.subcategory} </span> : null}
         {category.name}
       </span>
-      {!archived ? (
-        <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
-          {t.common.edit}
-        </Button>
-      ) : null}
-      <Button size="sm" variant="ghost" pending={busy} onClick={() => onArchive(!archived)}>
-        {archived ? t.settings.unarchive : t.common.archive}
-      </Button>
+      {readOnly ? null : (
+        <>
+          {!archived ? (
+            <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+              {t.common.edit}
+            </Button>
+          ) : null}
+          <Button size="sm" variant="ghost" pending={busy} onClick={() => onArchive(!archived)}>
+            {archived ? t.settings.unarchive : t.common.archive}
+          </Button>
+        </>
+      )}
     </li>
   );
 }

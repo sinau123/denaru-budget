@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { useAccounts, useInvalidateUserData } from "@/hooks/use-budget-data";
+import { useAccounts, useActiveBudget, useInvalidateUserData } from "@/hooks/use-budget-data";
 import { errorMessage } from "@/lib/api/api-errors";
 import type { Account } from "@/lib/api/api-types";
 import { deleteAccount, setAccountArchived } from "@/lib/api/budget-service";
@@ -20,6 +20,9 @@ import { Notice, Skeleton } from "../ui/notice";
 
 export function WalletsScreen() {
   const accounts = useAccounts();
+  const budget = useActiveBudget();
+  // Wallets of a shared budget are view-only for members.
+  const readOnly = budget?.is_own === false;
   const invalidate = useInvalidateUserData();
   const { openTransaction } = useTransactionDialog();
   const { t } = useI18n();
@@ -60,10 +63,11 @@ export function WalletsScreen() {
           <Button variant="secondary" onClick={() => openTransaction({ type: "transfer" })} disabled={active.length < 2}>
             {t.transactionType.transfer}
           </Button>
-          <Button onClick={() => setEditing("new")}>{w.newWallet}</Button>
+          {readOnly ? null : <Button onClick={() => setEditing("new")}>{w.newWallet}</Button>}
         </div>
       </header>
 
+      {readOnly && budget ? <Notice>{w.sharedReadOnly(budget.owner_name)}</Notice> : null}
       {accounts.isError ? <Notice tone="error">{errorMessage(accounts.error, t)}</Notice> : null}
       {actionError ? <Notice tone="error">{actionError}</Notice> : null}
       {accounts.isPending ? <Skeleton className="h-40" /> : null}
@@ -71,17 +75,21 @@ export function WalletsScreen() {
       <ul className="grid gap-3 sm:grid-cols-2">
         {active.map((a, i) => (
           <WalletCard key={a.id} account={a} index={i}>
-            <Button size="sm" variant="secondary" onClick={() => setEditing(a)}>
-              {t.common.edit}
-            </Button>
-            <Button size="sm" variant="ghost" pending={busyId === a.id} onClick={() => run(a.id, () => setAccountArchived(a.id, true))}>
-              {t.common.archive}
-            </Button>
-            {a.transaction_count === 0 ? (
-              <Button size="sm" variant="ghost" className="text-outflow" onClick={() => setConfirmDelete(a)}>
-                {t.common.delete}
-              </Button>
-            ) : null}
+            {readOnly ? null : (
+              <>
+                <Button size="sm" variant="secondary" onClick={() => setEditing(a)}>
+                  {t.common.edit}
+                </Button>
+                <Button size="sm" variant="ghost" pending={busyId === a.id} onClick={() => run(a.id, () => setAccountArchived(a.id, true))}>
+                  {t.common.archive}
+                </Button>
+                {a.transaction_count === 0 ? (
+                  <Button size="sm" variant="ghost" className="text-outflow" onClick={() => setConfirmDelete(a)}>
+                    {t.common.delete}
+                  </Button>
+                ) : null}
+              </>
+            )}
           </WalletCard>
         ))}
       </ul>
@@ -97,9 +105,11 @@ export function WalletsScreen() {
           <ul className="grid gap-3 sm:grid-cols-2">
             {archived.map((a, i) => (
               <WalletCard key={a.id} account={a} index={i} muted>
-                <Button size="sm" variant="secondary" pending={busyId === a.id} onClick={() => run(a.id, () => setAccountArchived(a.id, false))}>
-                  {w.unarchive}
-                </Button>
+                {readOnly ? null : (
+                  <Button size="sm" variant="secondary" pending={busyId === a.id} onClick={() => run(a.id, () => setAccountArchived(a.id, false))}>
+                    {w.unarchive}
+                  </Button>
+                )}
               </WalletCard>
             ))}
           </ul>
@@ -144,7 +154,7 @@ export function WalletsScreen() {
   );
 }
 
-function WalletCard({ account, index, muted, children }: { account: Account; index: number; muted?: boolean; children: React.ReactNode }) {
+function WalletCard({ account, index, muted, children }: { account: Account; index: number; muted?: boolean; children?: React.ReactNode }) {
   const { t, locale } = useI18n();
   const negative = account.balance_rupiah.startsWith("-");
   return (
@@ -170,7 +180,7 @@ function WalletCard({ account, index, muted, children }: { account: Account; ind
           {t.wallets.summary(formatRupiah(account.opening_balance_rupiah), account.transaction_count)}
         </p>
       </div>
-      <div className="flex flex-wrap gap-2">{children}</div>
+      {children ? <div className="flex flex-wrap gap-2">{children}</div> : null}
     </li>
   );
 }

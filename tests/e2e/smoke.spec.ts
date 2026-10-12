@@ -110,7 +110,7 @@ test("daily expenses and category filters include sub-categories", async ({ page
   const backend = await installFakeBackend(page);
   const day = backend.txns[0].occurred_on;
   const now = new Date().toISOString();
-  backend.txns.push({ id: "t4", type: "expense", amount_rupiah: "5000", account_id: "acc-cash", to_account_id: null, category_id: "cat-snack", occurred_on: day, note: "Cilok", version: 1, created_at: now, updated_at: now, source: "web" });
+  backend.txns.push({ id: "t4", type: "expense", amount_rupiah: "5000", account_id: "acc-cash", to_account_id: null, category_id: "cat-snack", occurred_on: day, note: "Cilok", version: 1, created_at: now, updated_at: now, source: "web", created_by: backend.txns[0].created_by, updated_by: null });
 
   await page.goto("/");
   const daily = page.getByRole("region", { name: "Pengeluaran harian" });
@@ -138,4 +138,46 @@ test("daily expenses and category filters include sub-categories", async ({ page
   await page.getByLabel("Kategori").selectOption({ label: "Makanan › Jajan · keluar" });
   await expect(page.getByText("Cilok")).toBeVisible();
   await expect(page.getByText("Nasi padang, es teh")).toHaveCount(0);
+});
+
+test("a member switches to a shared budget with view-only wallets", async ({ page }) => {
+  const backend = await installFakeBackend(page, { sharedBudget: true });
+  await page.goto("/pengaturan");
+  await expect(page.getByText("Sari (sari@example.com) mengundang Anda ke anggarannya.")).toBeVisible();
+
+  await page.getByLabel("Anggaran aktif").selectOption({ label: "Anggaran Budi Santoso" });
+  await expect(page.getByTestId("shared-budget-banner")).toContainText("Anda sedang memakai anggaran Budi Santoso.");
+  expect(backend.calls).toContain("set_active_budget");
+  await expect(page.getByText(/Kategori dikelola oleh Budi Santoso/)).toBeVisible();
+
+  await page.goto("/dompet");
+  await expect(page.getByText(/Dompet milik Budi Santoso/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Dompet baru" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Arsipkan" })).toHaveCount(0);
+  await expectNoHorizontalScroll(page);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/shared-wallets-${test.info().project.name}.png`, fullPage: true });
+});
+
+test("the owner invites someone to their budget", async ({ page }) => {
+  const backend = await installFakeBackend(page);
+  await page.goto("/pengaturan");
+  await page.getByTestId("invite-email").fill("Budi@Example.com");
+  await page.getByRole("button", { name: "Undang" }).click();
+  await expect(page.getByText(/Undangan untuk budi@example.com dibuat/)).toBeVisible();
+  await expect(page.getByTestId("budget-members")).toContainText("Menunggu diterima");
+  expect(backend.calls.filter((c) => c === "invite_budget_member")).toHaveLength(1);
+  await expectNoHorizontalScroll(page);
+});
+
+test("history shows who recorded entries made by someone else", async ({ page }) => {
+  await installFakeBackend(page);
+  await page.goto("/transaksi?bulan=semua");
+  // t3 was recorded by another member, t2 was edited by them; t1 carries no label.
+  await expect(page.getByText("Dicatat oleh Budi Santoso", { exact: true })).toHaveCount(1);
+  await expect(page.getByText("Dicatat oleh Anda · diubah oleh Budi Santoso", { exact: true })).toHaveCount(1);
+  await expect(page.getByText(/Dicatat oleh/)).toHaveCount(2);
+
+  // The edit dialog adds when it was last edited.
+  await page.getByText("Dicatat oleh Anda · diubah oleh Budi Santoso").click();
+  await expect(page.getByRole("dialog").getByText(/^Dicatat oleh Anda · terakhir diubah oleh Budi Santoso, \d+ \w+ \d{4}, \d{2}:\d{2}$/)).toBeVisible();
 });

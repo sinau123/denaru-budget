@@ -1,7 +1,7 @@
 "use client";
 
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { useUserId } from "@/components/auth-provider";
 import type { TransactionFilters } from "@/lib/api/api-types";
@@ -9,11 +9,13 @@ import {
   PAGE_SIZE,
   cursorOf,
   getAccounts,
+  getBudgetSharing,
   getDailyTotals,
   getDashboard,
   listCategories,
   listTransactions,
   loadProfile,
+  setActiveBudget,
 } from "@/lib/api/budget-service";
 import { queryKeys } from "@/lib/api/query-keys";
 import { monthRange } from "@/lib/date-utils";
@@ -21,6 +23,53 @@ import { monthRange } from "@/lib/date-utils";
 export function useProfile() {
   const userId = useUserId();
   return useQuery({ queryKey: queryKeys.profile(userId), queryFn: loadProfile });
+}
+
+/** The budget the app is showing; undefined until the profile has loaded. */
+export function useActiveBudget() {
+  return useProfile().data?.budget;
+}
+
+export function useBudgetSharing() {
+  const userId = useUserId();
+  return useQuery({ queryKey: queryKeys.sharing(userId), queryFn: getBudgetSharing });
+}
+
+/** Switches the active budget; null means the user's own. */
+export function useSwitchBudget() {
+  const userId = useUserId();
+  const queryClient = useQueryClient();
+  return useCallback(
+    async (ownerId: string | null) => {
+      const profile = await setActiveBudget(ownerId);
+      // useResetOnBudgetChange then drops the previous budget's cached data.
+      queryClient.setQueryData(queryKeys.profile(userId), profile);
+      return profile;
+    },
+    [queryClient, userId],
+  );
+}
+
+/**
+ * Budget data keys don't include the budget owner, so whenever the active
+ * budget changes (switched here, on another device, or access was revoked)
+ * every budget query is reset rather than showing the previous budget's data.
+ */
+export function useResetOnBudgetChange() {
+  const userId = useUserId();
+  const queryClient = useQueryClient();
+  const ownerId = useActiveBudget()?.owner_id;
+  const previous = useRef(ownerId);
+
+  useEffect(() => {
+    if (!ownerId || previous.current === ownerId) return;
+    const hadBudget = previous.current !== undefined;
+    previous.current = ownerId;
+    if (!hadBudget) return;
+    void queryClient.resetQueries({
+      predicate: (q) => q.queryKey[0] === userId && q.queryKey[1] !== "profile" && q.queryKey[1] !== "sharing",
+    });
+  }, [ownerId, queryClient, userId]);
 }
 
 export function useAccounts() {

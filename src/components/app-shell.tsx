@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { useActiveBudget } from "@/hooks/use-budget-data";
+
 import { ConnectionBanner } from "./connection-banner";
 import { useI18n } from "./i18n-provider";
 import { useTransactionDialog } from "./transaction-dialog";
@@ -63,6 +65,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-w-0 flex-col">
         <ConnectionBanner />
+        <SharedBudgetBanner />
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-32 pt-5 sm:px-6 md:pb-12 md:pt-8">{children}</main>
       </div>
 
@@ -111,5 +114,20 @@ function MobileNavItem({ href, label, icon, active }: { href: string; label: str
         {label}
       </Link>
     </li>
+  );
+}
+
+/** Reminds members which budget they're writing into. */
+function SharedBudgetBanner() {
+  const budget = useActiveBudget();
+  const { t } = useI18n();
+  if (!budget || budget.is_own) return null;
+  return (
+    <div role="status" data-testid="shared-budget-banner" className="bg-accent-soft px-4 py-2 text-center text-sm font-medium text-accent">
+      {t.budgetBanner.viewing(budget.owner_name)}{" "}
+      <Link href="/pengaturan" className="underline underline-offset-2">
+        {t.budgetBanner.change}
+      </Link>
+    </div>
   );
 }

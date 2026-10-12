@@ -10,11 +10,11 @@ function today() {
 type Txn = {
   id: string; type: "income" | "expense" | "transfer"; amount_rupiah: string; account_id: string;
   to_account_id: string | null; category_id: string | null; occurred_on: string; note: string;
-  version: number; created_at: string; updated_at: string; source: "web";
+  version: number; created_at: string; updated_at: string; source: "web"; created_by: string; updated_by: string | null;
 };
 
 /** A tiny in-memory imitation of the api.* RPCs, enough to drive the UI. */
-export async function installFakeBackend(page: Page, opts: { onboarded?: boolean } = {}) {
+export async function installFakeBackend(page: Page, opts: { onboarded?: boolean; sharedBudget?: boolean } = {}) {
   const userId = "00000000-0000-4000-8000-0000000000e2";
   const monthStart = `${today().slice(0, 8)}01`;
   const accounts = opts.onboarded === false ? [] : [
@@ -38,18 +38,29 @@ export async function installFakeBackend(page: Page, opts: { onboarded?: boolean
   const txns: Txn[] = [];
   let dataVersion = 1;
   const calls: string[] = [];
+  // Budget sharing: one accepted share from another user and one pending invite.
+  const ownerId = "00000000-0000-4000-8000-0000000000a1";
+  const sharedWithMe = opts.sharedBudget
+    ? [
+        { id: "share-1", owner_id: ownerId, owner_name: "Budi Santoso", owner_email: "budi@example.com", status: "accepted", created_at: "2026-01-01T00:00:00Z", accepted_at: "2026-01-01T00:00:00Z" },
+        { id: "share-2", owner_id: "00000000-0000-4000-8000-0000000000a2", owner_name: "Sari", owner_email: "sari@example.com", status: "pending", created_at: "2026-01-02T00:00:00Z", accepted_at: null },
+      ]
+    : [];
+  const members: { id: string; email: string; status: string; created_at: string; accepted_at: string | null }[] = [];
+  let activeBudget: string | null = null;
 
-  const add = (t: Omit<Txn, "version" | "created_at" | "updated_at" | "source">) => {
+  const people: Record<string, string> = { [userId]: "Dewi Lestari", "00000000-0000-4000-8000-0000000000a1": "Budi Santoso" };
+  const add = (t: Omit<Txn, "version" | "created_at" | "updated_at" | "source" | "created_by" | "updated_by">, createdBy = userId, updatedBy: string | null = null) => {
     const now = new Date().toISOString();
-    const row: Txn = { ...t, version: 1, created_at: now, updated_at: now, source: "web" };
+    const row: Txn = { ...t, version: 1, created_at: now, updated_at: now, source: "web", created_by: createdBy, updated_by: updatedBy };
     txns.push(row);
     dataVersion++;
     return row;
   };
   if (opts.onboarded !== false) {
     add({ id: "t1", type: "expense", amount_rupiah: "25000", account_id: "acc-cash", to_account_id: null, category_id: "cat-food", occurred_on: monthStart, note: "Nasi padang, es teh" });
-    add({ id: "t2", type: "income", amount_rupiah: "2000000", account_id: "acc-bank", to_account_id: null, category_id: "cat-salary", occurred_on: monthStart, note: "" });
-    add({ id: "t3", type: "transfer", amount_rupiah: "100000", account_id: "acc-bank", to_account_id: "acc-cash", category_id: null, occurred_on: monthStart, note: "Tarik tunai" });
+    add({ id: "t2", type: "income", amount_rupiah: "2000000", account_id: "acc-bank", to_account_id: null, category_id: "cat-salary", occurred_on: monthStart, note: "" }, userId, "00000000-0000-4000-8000-0000000000a1");
+    add({ id: "t3", type: "transfer", amount_rupiah: "100000", account_id: "acc-bank", to_account_id: "acc-cash", category_id: null, occurred_on: monthStart, note: "Tarik tunai" }, "00000000-0000-4000-8000-0000000000a1");
   }
 
   const balance = (id: string) => {
@@ -69,10 +80,27 @@ export async function installFakeBackend(page: Page, opts: { onboarded?: boolean
     account_name: accounts.find((a) => a.id === t.account_id)?.name,
     to_account_name: accounts.find((a) => a.id === t.to_account_id)?.name ?? null,
     category_name: categoryName(t.category_id),
+    created_by_name: people[t.created_by] ?? null,
+    updated_by_name: t.updated_by ? people[t.updated_by] ?? null : null,
   });
 
   const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
-    get_profile: () => ({ id: userId, display_name: "Dewi Lestari", timezone: "Asia/Jakarta", currency: "IDR", data_version: String(dataVersion), has_accounts: accounts.length > 0, today: today() }),
+    get_profile: () => ({
+      id: userId, display_name: "Dewi Lestari", timezone: "Asia/Jakarta", currency: "IDR", data_version: String(dataVersion), has_accounts: accounts.length > 0, today: today(),
+      budget: activeBudget
+        ? { owner_id: activeBudget, owner_name: sharedWithMe.find((x) => x.owner_id === activeBudget)!.owner_name, is_own: false }
+        : { owner_id: userId, owner_name: "Dewi Lestari", is_own: true },
+    }),
+    get_budget_sharing: () => ({ members, shared_with_me: sharedWithMe }),
+    set_active_budget: (a) => {
+      activeBudget = (a.p_owner_id as string | null) || null;
+      return handlers.get_profile({});
+    },
+    invite_budget_member: (a) => {
+      const m = { id: a.p_id as string, email: String(a.p_email).trim().toLowerCase(), status: "pending", created_at: new Date().toISOString(), accepted_at: null };
+      if (!members.some((x) => x.id === m.id)) members.push(m);
+      return m;
+    },
     bootstrap_user: () => handlers.get_profile({}),
     get_accounts: () => accounts.map((a) => ({
       ...a, balance_rupiah: balance(a.id),

@@ -4,6 +4,7 @@ import {
   addDays,
   formatDateLong,
   formatDateShort,
+  formatDateTime,
   formatMonth,
   isIsoDate,
   isMonth,
@@ -18,6 +19,11 @@ describe("date-utils", () => {
     // 2026-10-09 18:30 UTC is already 2026-10-10 01:30 in Jakarta.
     expect(todayJakarta(new Date("2026-10-09T18:30:00Z"))).toBe("2026-10-10");
     expect(todayJakarta(new Date("2026-10-09T16:59:00Z"))).toBe("2026-10-09");
+  });
+
+  it("shows timestamps in Jakarta time", () => {
+    expect(formatDateTime("2026-10-09T18:30:00Z", "id")).toBe("10 Okt 2026, 01:30");
+    expect(formatDateTime("2026-10-09T18:30:00Z", "en")).toBe("10 Oct 2026, 01:30");
   });
 
   it("builds month ranges with an exclusive end", () => {

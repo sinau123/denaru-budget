@@ -64,6 +64,10 @@ export function formatDateLong(iso: string, locale: Locale = DEFAULT_LOCALE): st
 export function formatDateShort(iso: string, locale: Locale = DEFAULT_LOCALE): string {
   return calendarDate(iso, locale).format("D MMM");
 }
+/** A timestamp shown in Jakarta time: "12 Okt 2026, 14:05". */
+export function formatDateTime(timestamp: string, locale: Locale = DEFAULT_LOCALE): string {
+  return dayjs(timestamp).tz(APP_TIME_ZONE).locale(DAYJS_LOCALE[locale]).format("D MMM YYYY, HH:mm");
+}
 /** "Oktober 2026" / "October 2026" */
 export function formatMonth(month: string, locale: Locale = DEFAULT_LOCALE): string {
   return dayjs.utc(month, ISO_MONTH).locale(DAYJS_LOCALE[locale]).format("MMMM YYYY");

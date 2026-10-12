@@ -52,6 +52,10 @@ export const en: Dictionary = {
   connection: {
     offline: "You're offline. You can still see the last screen, but saving needs a connection.",
   },
+  budgetBanner: {
+    viewing: (name) => `You're using ${name}'s budget.`,
+    change: "Change",
+  },
   session: {
     connectFailed: "Can't connect",
     pausedHint:
@@ -184,10 +188,17 @@ export const en: Dictionary = {
     emptyTitle: "No transactions yet",
     emptyBody: "Transactions you record will show up here.",
     loadMore: "Load more",
+    recordedBy: (name) => `Recorded by ${name}`,
+    editedBy: (name) => `edited by ${name}`,
+    lastEditedBy: (name, when) => `last edited by ${name}, ${when}`,
+    you: "you",
+    formerMember: "another user",
     shown: (count) => `Showing ${plural(count, "transaction", "transactions")}.`,
   },
   wallets: {
     totalBalance: "Total current balance",
+    sharedReadOnly: (name) =>
+      `These wallets belong to ${name}. You can see balances and record transactions, but you can't change the wallets.`,
     newWallet: "New wallet",
     editWallet: "Edit wallet",
     archivedTitle: "Archived",
@@ -232,6 +243,37 @@ export const en: Dictionary = {
     signedInAs: (email) => `Signed in as ${email}.`,
     googleUser: "Google user",
     signOut: "Sign out",
+    categoriesShared: (name) =>
+      `Categories are managed by ${name}. You can use them for transactions, but you can't change them.`,
+    budgetTitle: "Budget shown",
+    budgetDescription: "Choose which books appear in Overview, Transactions, and Wallets.",
+    budgetLabel: "Active budget",
+    ownBudget: "My budget",
+    sharedBudget: (name) => `${name}'s budget`,
+    invitesTitle: "Invitations",
+    inviteFrom: (name, email) => `${name} (${email}) invited you to their budget.`,
+    accept: "Accept",
+    decline: "Decline",
+    shareTitle: "Share my budget",
+    shareDescription:
+      "People you invite can add, edit, and delete transactions and see your overview and wallets. Only you can change wallets and categories. Up to 4 people.",
+    inviteEmail: "Google email of the person to invite",
+    invitePlaceholder: "name@gmail.com",
+    invite: "Invite",
+    invited: (email) => `Invitation for ${email} created. It appears in their Settings once they sign in with that email.`,
+    memberPending: "Waiting for acceptance",
+    memberAccepted: "Joined",
+    removeMember: "Remove access",
+    cancelInvite: "Cancel",
+    noMembers: "No one invited yet.",
+    joinedTitle: "Budgets shared with me",
+    leave: "Leave",
+    removeTitle: "Remove access?",
+    removeBody: (email) =>
+      `${email} will no longer be able to see or record transactions in your budget. Transactions already recorded stay.`,
+    leaveTitle: "Leave this budget?",
+    leaveBody: (name) =>
+      `You will no longer be able to see or record transactions in ${name}'s budget. Rejoining needs a new invitation.`,
   },
   login: {
     tagline: "Record expenses in seconds. See where your money goes every month.",
@@ -293,6 +335,10 @@ export const en: Dictionary = {
       IMMUTABLE_FIELD: "This data can't be changed.",
       NOT_AUTHENTICATED: "Your session has ended. Please sign in again.",
       EXPORT_CHANGED: "Data changed during the export. The export was cancelled; please try again.",
+      EMAIL_INVALID: "Invalid email.",
+      INVITE_SELF: "You can't invite yourself.",
+      INVITE_EXISTS: "This email has already been invited.",
+      MEMBER_LIMIT: "A budget can be shared with at most 4 people.",
       UNKNOWN: "Something went wrong. Please try again in a moment.",
     },
   },
