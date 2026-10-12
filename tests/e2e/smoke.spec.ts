@@ -181,3 +181,30 @@ test("history shows who recorded entries made by someone else", async ({ page })
   await page.getByText("Dicatat oleh Anda · diubah oleh Budi Santoso").click();
   await expect(page.getByRole("dialog").getByText(/^Dicatat oleh Anda · terakhir diubah oleh Budi Santoso, \d+ \w+ \d{4}, \d{2}:\d{2}$/)).toBeVisible();
 });
+
+test("connects Telegram after approving on the web", async ({ page }) => {
+  const backend = await installFakeBackend(page);
+  await page.goto("/pengaturan");
+
+  await page.getByTestId("telegram-connect").click();
+  const botLink = page.getByRole("link", { name: "Buka bot di Telegram" });
+  await expect(botLink).toHaveAttribute("href", "https://t.me/denaru_e2e_bot?start=0123456789abcdef0123456789abcdef");
+
+  // The user presses Start in Telegram; the page polls and asks for approval.
+  backend.claimTelegram();
+  const approval = page.getByTestId("telegram-approve");
+  await expect(approval).toContainText("@dewi_l (Dewi)", { timeout: 10_000 });
+  await approval.getByRole("button", { name: "Setujui" }).click();
+
+  const connected = page.getByTestId("telegram-connected");
+  await expect(connected).toContainText("Terhubung dengan @dewi_l (Dewi).");
+  await expect(connected.getByText("Pilih dompet default agar bot tidak menanyakannya setiap kali.")).toBeVisible();
+  await page.getByTestId("telegram-default-wallet").selectOption({ label: "Tunai" });
+  await expect(page.getByText("Dompet default disimpan.")).toBeVisible();
+  expect(backend.telegram.link?.default_account_id).toBe("acc-cash");
+  await expectNoHorizontalScroll(page);
+
+  await connected.getByRole("button", { name: "Putuskan" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Putuskan" }).click();
+  await expect(page.getByTestId("telegram-connect")).toBeVisible();
+});

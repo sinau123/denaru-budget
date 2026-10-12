@@ -12,6 +12,7 @@ import {
   getBudgetSharing,
   getDailyTotals,
   getDashboard,
+  getTelegramStatus,
   listCategories,
   listTransactions,
   loadProfile,
@@ -33,6 +34,17 @@ export function useActiveBudget() {
 export function useBudgetSharing() {
   const userId = useUserId();
   return useQuery({ queryKey: queryKeys.sharing(userId), queryFn: getBudgetSharing });
+}
+
+/** Polls every few seconds only while a pairing code is waiting for approval. */
+export function useTelegramStatus(enabled = true) {
+  const userId = useUserId();
+  return useQuery({
+    queryKey: queryKeys.telegram(userId),
+    queryFn: getTelegramStatus,
+    enabled,
+    refetchInterval: (query) => (query.state.data?.pending ? 3000 : false),
+  });
 }
 
 /** Switches the active budget; null means the user's own. */

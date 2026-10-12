@@ -8,6 +8,7 @@ export const queryKeys = {
   all: (userId: string) => [userId] as const,
   profile: (userId: string) => [userId, "profile"] as const,
   sharing: (userId: string) => [userId, "sharing"] as const,
+  telegram: (userId: string) => [userId, "telegram"] as const,
   accounts: (userId: string) => [userId, "accounts"] as const,
   categories: (userId: string) => [userId, "categories"] as const,
   dashboard: (userId: string, month: string) => [userId, "dashboard", month] as const,

@@ -72,6 +72,7 @@ export function TransactionList({
                       <p className="truncate text-sm text-ink-faint">
                         {r.type === "transfer" ? t.transactionType.transfer : r.account_name}
                         {r.note ? ` · ${r.note}` : ""}
+                        {r.source === "telegram" ? ` · ${t.transactions.viaTelegram}` : ""}
                       </p>
                       <TransactionAudit row={r} className="truncate text-xs text-ink-faint" />
                     </div>

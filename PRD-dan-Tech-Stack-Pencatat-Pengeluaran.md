@@ -358,7 +358,7 @@ Bot mengubah pesan menjadi draft dan membalas ringkasan jenis, nominal, kategori
 
 ### F13 Bantuan dan koreksi P1
 
-Perintah /bantuan menampilkan contoh; /batal membatalkan draft aktif; /terakhir menampilkan transaksi terbaru milik pengguna. Koreksi transaksi yang sudah disimpan dilakukan dari web pada rilis Telegram pertama. Mengedit atau menghapus pesan Telegram tidak otomatis mengubah catatan keuangan. Foto, voice note, pesan grup, transfer lewat chat, serta beberapa transaksi dalam satu pesan ditunda.
+Perintah /help menampilkan contoh; /cancel membatalkan draft aktif; /last menampilkan transaksi terbaru milik pengguna; /disconnect memutus koneksi setelah konfirmasi. Nama perintah memakai bahasa Inggris, sedangkan balasan bot berbahasa Indonesia. Koreksi transaksi yang sudah disimpan dilakukan dari web pada rilis Telegram pertama. Mengedit atau menghapus pesan Telegram tidak otomatis mengubah catatan keuangan. Foto, voice note, pesan grup, transfer lewat chat, serta beberapa transaksi dalam satu pesan ditunda.
 
 <!-- pagebreak -->
 
@@ -407,7 +407,7 @@ Simpan state pemrosesan sebelum memberi respons berhasil pada webhook. Pada pemr
 
 Target biaya tambahan fase kedua tetap Rp0 untuk pilot kecil dengan parser berbasis aturan dan pemakaian yang masih masuk kuota hosting serta database. Pantau jumlah invocation, egress, ukuran tabel event, dan laju pesan; tidak ada ketergantungan layanan AI atau n8n pada rilis pertama.
 
-Jeda proyek Supabase atau gangguan webhook tetap dapat menghambat input. Telegram menyimpan update yang belum diterima maksimal 24 jam; pengiriman ulang webhook tidak boleh dianggap sebagai antrean tanpa batas. Setelah gangguan panjang, pengguna memeriksa /terakhir atau riwayat web sebelum mengirim ulang transaksi yang belum tercatat. Kegagalan membalas tidak selalu berarti transaksi gagal disimpan. [10][12]
+Jeda proyek Supabase atau gangguan webhook tetap dapat menghambat input. Telegram menyimpan update yang belum diterima maksimal 24 jam; pengiriman ulang webhook tidak boleh dianggap sebagai antrean tanpa batas. Setelah gangguan panjang, pengguna memeriksa /last atau riwayat web sebelum mengirim ulang transaksi yang belum tercatat. Kegagalan membalas tidak selalu berarti transaksi gagal disimpan. [10][12]
 
 ### Pengujian dan syarat rilis
 

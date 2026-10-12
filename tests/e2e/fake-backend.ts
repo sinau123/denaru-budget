@@ -84,7 +84,39 @@ export async function installFakeBackend(page: Page, opts: { onboarded?: boolean
     updated_by_name: t.updated_by ? people[t.updated_by] ?? null : null,
   });
 
+  // Telegram pairing state (PRD F11). claimTelegram() plays the bot receiving /start <code>.
+  const telegram: {
+    link: { id: string; telegram_user_id: string; username: string; first_name: string; default_account_id: string | null; created_at: string } | null;
+    pending: { id: string; expires_at: string; claimed: boolean; username: string; first_name: string } | null;
+  } = { link: null, pending: null };
+  const claimTelegram = () => {
+    if (telegram.pending) telegram.pending = { ...telegram.pending, claimed: true, username: "dewi_l", first_name: "Dewi" };
+  };
+
   const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
+    telegram_get_status: () => telegram,
+    telegram_create_link_token: () => {
+      telegram.pending = { id: "tok-1", expires_at: new Date(Date.now() + 5 * 60_000).toISOString(), claimed: false, username: "", first_name: "" };
+      return { id: "tok-1", code: "0123456789abcdef0123456789abcdef", expires_at: telegram.pending.expires_at };
+    },
+    telegram_confirm_link: () => {
+      const p = telegram.pending!;
+      telegram.link = { id: "link-1", telegram_user_id: "4242", username: p.username, first_name: p.first_name, default_account_id: null, created_at: new Date().toISOString() };
+      telegram.pending = null;
+      return telegram;
+    },
+    telegram_reject_link: () => {
+      telegram.pending = null;
+      return telegram;
+    },
+    telegram_set_default_account: (a) => {
+      telegram.link = { ...telegram.link!, default_account_id: (a.p_account_id as string | null) ?? null };
+      return telegram;
+    },
+    telegram_unlink: () => {
+      telegram.link = null;
+      return telegram;
+    },
     get_profile: () => ({
       id: userId, display_name: "Dewi Lestari", timezone: "Asia/Jakarta", currency: "IDR", data_version: String(dataVersion), has_accounts: accounts.length > 0, today: today(),
       budget: activeBudget
@@ -200,5 +232,5 @@ export async function installFakeBackend(page: Page, opts: { onboarded?: boolean
     if (!sessionStorage.getItem("e2e-signed-out")) localStorage.setItem(key, value);
   }, [STORAGE_KEY, JSON.stringify(session)] as const);
 
-  return { calls, txns };
+  return { calls, txns, claimTelegram, telegram };
 }

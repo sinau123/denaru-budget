@@ -9,6 +9,8 @@ import type {
   DailyTotal,
   Dashboard,
   Profile,
+  TelegramLinkToken,
+  TelegramStatus,
   Transaction,
   TransactionCursor,
   TransactionFilters,
@@ -57,6 +59,33 @@ export function removeBudgetMember(id: string) {
 /** Null switches back to the user's own budget. */
 export function setActiveBudget(ownerId: string | null) {
   return callRpc<Profile>("set_active_budget", { p_owner_id: ownerId });
+}
+
+// Telegram ------------------------------------------------------------------
+
+export function getTelegramStatus() {
+  return callRpc<TelegramStatus>("telegram_get_status");
+}
+
+/** Starts pairing; the code goes into the bot's deep link. Valid five minutes. */
+export function createTelegramLinkToken() {
+  return callRpc<TelegramLinkToken>("telegram_create_link_token");
+}
+
+export function confirmTelegramLink(tokenId: string) {
+  return callRpc<TelegramStatus>("telegram_confirm_link", { p_token_id: tokenId });
+}
+
+export function rejectTelegramLink(tokenId: string) {
+  return callRpc<TelegramStatus>("telegram_reject_link", { p_token_id: tokenId });
+}
+
+export function setTelegramDefaultAccount(accountId: string | null) {
+  return callRpc<TelegramStatus>("telegram_set_default_account", { p_account_id: accountId });
+}
+
+export function unlinkTelegram() {
+  return callRpc<TelegramStatus>("telegram_unlink");
 }
 
 // Accounts ------------------------------------------------------------------

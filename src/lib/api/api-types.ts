@@ -159,3 +159,35 @@ export type TransactionInput = {
   occurred_on: string;
   note: string;
 };
+
+/** The Telegram identity connected to the signed-in user (PRD F11). */
+export type TelegramLink = {
+  id: string;
+  telegram_user_id: string;
+  username: string;
+  first_name: string;
+  /** May point to a wallet of another budget after switching; the bot then asks. */
+  default_account_id: string | null;
+  created_at: string;
+};
+
+/** A pairing code that is still valid; claimed once someone pressed Start in the bot. */
+export type TelegramPending = {
+  id: string;
+  expires_at: string;
+  claimed: boolean;
+  username: string;
+  first_name: string;
+};
+
+export type TelegramStatus = {
+  link: TelegramLink | null;
+  pending: TelegramPending | null;
+};
+
+/** The raw code is only returned once, when it is created. */
+export type TelegramLinkToken = {
+  id: string;
+  code: string;
+  expires_at: string;
+};

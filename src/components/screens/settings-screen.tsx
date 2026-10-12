@@ -13,6 +13,7 @@ import { ActiveBudgetSection, IncomingInvitesSection, ShareBudgetSection } from 
 import { ExportButton } from "../export-button";
 import { useI18n } from "../i18n-provider";
 import { LanguageSwitcher } from "../language-switcher";
+import { TelegramSection } from "../telegram-section";
 import { Button } from "../ui/button";
 import { cx } from "../ui/cx";
 import { inputClass } from "../ui/field";
@@ -54,7 +55,7 @@ export function SettingsScreen() {
 
       <SettingsSection title={s.installTitle} description={s.installDescription} />
 
-      <SettingsSection title={s.telegramTitle} description={s.telegramDescription} />
+      <TelegramSection />
 
       <SettingsSection
         title={s.accountTitle}

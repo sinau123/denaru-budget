@@ -20,6 +20,7 @@ export default defineConfig({
     env: {
       NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54399",
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "e2e-publishable-key",
+      NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: "denaru_e2e_bot",
     },
   },
 });

@@ -59,8 +59,21 @@ export async function createDb() {
     return rows[0]?.result as T;
   }
 
+  /** Calls a function as the service role (the Telegram webhook), without a user identity. */
+  async function service<T = Record<string, unknown>>(call: string, params: unknown[] = []) {
+    const claims = JSON.stringify({ role: "service_role" });
+    await pg.query("select set_config('request.jwt.claims', $1, false)", [claims]);
+    await pg.exec("set role service_role");
+    try {
+      const result = await pg.query<{ result: T }>(`select ${call} as result`, params);
+      return result.rows[0]?.result as T;
+    } finally {
+      await pg.exec("reset role");
+    }
+  }
+
   /** Sets "now" in Asia/Jakarta-independent terms isn't possible in PGlite; tests use real dates. */
-  return { pg, createUser, as, rpc, close: () => pg.close() };
+  return { pg, createUser, as, rpc, service, close: () => pg.close() };
 }
 
 /** Extracts the RAISE message from a rejected query. */
