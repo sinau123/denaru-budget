@@ -261,7 +261,7 @@ export const en: Dictionary = {
     telegramDefaultHint: "Used when a message doesn't name a wallet. Choices are the active wallets of the budget for chat.",
     telegramDefaultMissing: "Choose a default wallet so the bot doesn't ask every time.",
     telegramDefaultSaved: "Default wallet saved.",
-    telegramCommands: "Bot commands: /help, /budget, /last, /cancel, /disconnect.",
+    telegramCommands: "Bot commands: /help, /budget, /last, /cancel, /disconnect, /app.",
     telegramDisconnect: "Disconnect",
     telegramDisconnectTitle: "Disconnect Telegram?",
     telegramDisconnectBody:

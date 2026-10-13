@@ -48,6 +48,7 @@ await call("setMyCommands", {
     { command: "last", description: "5 transaksi terakhir" },
     { command: "cancel", description: "Batalkan draft aktif" },
     { command: "disconnect", description: "Putuskan Telegram dari akun" },
+    { command: "app", description: "Buka aplikasi web Denaru" },
   ],
 });
 

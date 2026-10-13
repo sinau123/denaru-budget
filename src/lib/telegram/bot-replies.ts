@@ -202,7 +202,10 @@ export const texts = {
     "/help — bantuan ini",
     "",
     "Koreksi transaksi yang sudah tersimpan dilakukan dari aplikasi web.",
+    "",
+    "/app — buka aplikasi web Denaru",
   ].join("\n"),
+  app: (appUrl: string) => `Aplikasi web Denaru:\n<a href="${escapeHtml(appUrl)}">${escapeHtml(appUrl)}</a>`,
   notLinked: (appUrl: string) =>
     [
       "Telegram ini belum terhubung ke akun Denaru.",

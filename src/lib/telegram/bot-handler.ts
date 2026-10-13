@@ -46,11 +46,22 @@ export type HandleOutcome = "handled" | "duplicate" | "ignored";
 
 type LinkedContext = Extract<BotContext, { linked: true }>;
 type Reply = (html: string, keyboard?: InlineKeyboard) => Promise<void>;
+type ParsedCommand = { name: string; arg: string };
 
 // Rejections that make a draft message obsolete: its buttons are removed.
 const STALE_DRAFT_CODES = new Set(["DRAFT_NOT_FOUND", "DRAFT_CLOSED", "DRAFT_EXPIRED", "VERSION_CONFLICT", "BUDGET_CHANGED"]);
 
 export async function handleUpdate(update: TelegramUpdate, deps: BotDeps): Promise<HandleOutcome> {
+  const appMessage = getAppCommandMessage(update);
+  if (appMessage) {
+    try {
+      await deps.telegram.sendMessage(String(appMessage.chat.id), texts.app(deps.appUrl));
+    } catch (error) {
+      if (!(error instanceof TelegramRejectedError)) throw error;
+    }
+    return "handled";
+  }
+
   const updateId = String(update.update_id);
   const { replied } = await deps.db.receiveUpdate(updateId);
   if (replied) return "duplicate";
@@ -87,9 +98,9 @@ async function onMessage(message: TelegramMessage, updateId: string, deps: BotDe
   }
 
   try {
-    const command = /^\/([a-z_]+)(?:@\w+)?(?:\s+([\s\S]*))?$/i.exec(text);
+    const command = parseCommand(text);
     if (command) {
-      await onCommand(command[1].toLowerCase(), command[2]?.trim() ?? "", message, updateId, who, deps, reply);
+      await onCommand(command.name, command.arg, message, updateId, who, deps, reply);
       return "handled";
     }
 
@@ -166,6 +177,18 @@ async function onCommand(
     default:
       await reply(texts.help);
   }
+}
+
+function parseCommand(text: string): ParsedCommand | null {
+  const command = /^\/([a-z_]+)(?:@\w+)?(?:\s+([\s\S]*))?$/i.exec(text);
+  return command ? { name: command[1].toLowerCase(), arg: command[2]?.trim() ?? "" } : null;
+}
+
+function getAppCommandMessage(update: TelegramUpdate): TelegramMessage | null {
+  const message = update.message;
+  if (!message || message.chat.type !== "private" || !message.from || message.from.is_bot) return null;
+  const text = message.text?.trim();
+  return text && parseCommand(text)?.name === "app" ? message : null;
 }
 
 async function onTransactionText(

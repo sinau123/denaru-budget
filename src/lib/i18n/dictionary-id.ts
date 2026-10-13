@@ -269,7 +269,7 @@ export const id = {
       "Dipakai bila pesan tidak menyebut dompet. Pilihan berasal dari dompet aktif di anggaran untuk chat.",
     telegramDefaultMissing: "Pilih dompet default agar bot tidak menanyakannya setiap kali.",
     telegramDefaultSaved: "Dompet default disimpan.",
-    telegramCommands: "Perintah bot: /help, /budget, /last, /cancel, /disconnect.",
+    telegramCommands: "Perintah bot: /help, /budget, /last, /cancel, /disconnect, /app.",
     telegramDisconnect: "Putuskan",
     telegramDisconnectTitle: "Putuskan Telegram?",
     telegramDisconnectBody:

@@ -229,7 +229,19 @@ describe("messages", () => {
     await handleUpdate(textUpdate("/last"), deps);
     expect(db.recentTransactions).toHaveBeenCalledWith(expect.anything(), 5);
     await handleUpdate(textUpdate("/help"), deps);
-    expect(telegram.sendMessage.mock.calls.at(-1)?.[1]).toContain("/disconnect");
+    expect(telegram.sendMessage.mock.calls.at(-1)?.[1]).toMatch(/\/app — buka aplikasi web Denaru$/);
+  });
+
+  it("shows the web app URL without requiring a linked account", async () => {
+    db.getContext.mockResolvedValue({ linked: false });
+
+    await handleUpdate(textUpdate("/app"), deps);
+
+    for (const call of Object.values(db)) expect(call).not.toHaveBeenCalled();
+    expect(telegram.sendMessage).toHaveBeenCalledWith(
+      String(USER),
+      'Aplikasi web Denaru:\n<a href="https://app.example">https://app.example</a>',
+    );
   });
 });
 

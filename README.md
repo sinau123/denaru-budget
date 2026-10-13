@@ -105,7 +105,7 @@ How it works:
   stores its result, so a re-delivered update replays it. A draft carries its transaction ID from creation, is
   locked on commit, and stays as proof after commit, so a second click, a retry, or a click after the transaction
   was deleted on the web never inserts again. Old draft versions cannot be saved.
-- **Commands**: `/help`, `/budget`, `/last`, `/cancel`, `/disconnect` (replies are in Indonesian). Corrections to saved
+- **Commands**: `/help`, `/budget`, `/last`, `/cancel`, `/disconnect`, `/app` (replies are in Indonesian). Corrections to saved
   transactions are made on the web.
 
 Setup:
